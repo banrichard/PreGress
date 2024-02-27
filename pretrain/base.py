@@ -1,4 +1,5 @@
 import torch
+from data.data_load import load4graph
 from model.graphconv import Backbone
 from torch.optim import Adam
 
