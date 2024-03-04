@@ -1,9 +1,12 @@
+import random
+
 import torch
 from torch_geometric.transforms import NormalizeFeatures
 from torch_geometric.utils import to_undirected
 from torch_geometric.loader.cluster import ClusterData
 from torch_geometric.data import Data
-from torch_geometric.datasets import QM9
+from torch_geometric.datasets import QM9, Planetoid
+
 
 def load4graph(dataset_name, shot_num=10, num_parts=None):
     if dataset_name in ['QM9']:
