@@ -1,11 +1,40 @@
 import random
-
+import os
 import torch
+import networkx as nx
 from torch_geometric.transforms import NormalizeFeatures
-from torch_geometric.utils import to_undirected
+from torch_geometric.utils import to_undirected,from_networkx
 from torch_geometric.loader.cluster import ClusterData
 from torch_geometric.data import Data
 from torch_geometric.datasets import QM9, Planetoid
+
+def single_graph_load(file):
+	file = open(file)
+
+	nodes_list = []
+	edges_list = []
+
+	for line in file:
+		if line.strip().startswith("v"):
+			tokens = line.strip().split()
+			# v nodeID labelID degree
+			id = int(tokens[1])
+			labels = tokens[2:]
+			nodes_list.append((id, {"labels": labels}))
+		if line.strip().startswith("e"):
+			tokens = line.strip().split()
+			src, dst = int(tokens[1]), int(tokens[2])
+			labels = [] #tokens[3:]
+			edges_list.append((src, dst, {"labels" : labels}))
+
+	graph = nx.Graph()
+	graph.add_nodes_from(nodes_list)
+	graph.add_edges_from(edges_list)
+
+	print('number of nodes: {}'.format(graph.number_of_nodes()))
+	print('number of edges: {}'.format(graph.number_of_edges()))
+	file.close()
+	return graph
 
 
 def load4graph(dataset_name, shot_num=10, num_parts=None):
@@ -58,3 +87,7 @@ def load4graph(dataset_name, shot_num=10, num_parts=None):
         # 这里的图没有标签
 
         return input_dim, out_dim, None, None, None, graph_list
+
+
+if __name__ == "__main__":
+    single_graph_load("/mnt/data/lujie/metacounting_dataset/QM9/networkx/0.txt")
