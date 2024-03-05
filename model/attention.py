@@ -69,6 +69,22 @@ class RegressorBlock(nn.Module):
     def __init__(self, dim, num_heads, mlp_ratio=4., qkv_bias=False, qk_scale=None, drop=0., attn_drop=0.,
                  drop_path=0., init_values=None, act_layer=nn.GELU, norm_layer=nn.LayerNorm,
                  window_size=None, attn_head_dim=None):
+        """
+
+        :param dim:
+        :param num_heads:
+        :param mlp_ratio: adjust the mlp hidden dim
+        :param qkv_bias:
+        :param qk_scale:
+        :param drop:
+        :param attn_drop:
+        :param drop_path:
+        :param init_values:
+        :param act_layer:
+        :param norm_layer:
+        :param window_size:
+        :param attn_head_dim:
+        """
         super().__init__()
         self.norm1_q = norm_layer(dim)
         self.norm1_k = norm_layer(dim)

@@ -1,3 +1,4 @@
+import networkx as nx
 from torch_geometric.datasets import ZINC, QM9
 from torch_geometric.utils import to_networkx
 import os
@@ -15,6 +16,17 @@ def dataset_load(name="ZINC", type="train"):
         graph_to_file(data[i], name, i)
     return data
 
+def importance_cal(dataset):
+    data = dataset_load(dataset)
+    for d in data:
+        graph = to_networkx(d)
+        # the centralities are dictionaries
+        degree_centrality = nx.degree_centrality(graph)
+        eigenvector_centrality = nx.eigenvector_centrality(graph)
+        betweenness_centrality = nx.betweenness_centrality(graph)
+        #add them to original node feature as labels
+
+
 def graph_to_file(graph, name, i):
     graph = to_networkx(graph)
     with open(os.path.join("/mnt/data/lujie/metacounting_dataset", "networkx", name, str(i) + ".txt")) as f:
@@ -31,5 +43,4 @@ def graph_to_file(graph, name, i):
 
 
 if __name__ == "__main__":
-    data = dataset_load(name="QM9")
-    print(data[0])
+    importance_cal("QM9")

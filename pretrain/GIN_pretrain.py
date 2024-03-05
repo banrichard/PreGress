@@ -17,6 +17,13 @@ class GIN(PreTrain):
                                              nn.ReLU(inplace=True),
                                              nn.Linear(hid_dim, hid_dim))
 
+    @torch.no_grad()
+    def momentum_update(self, base_momentum=0):
+        """Momentum update of the teacher network."""
+        for param_encoder, param_teacher in zip(self.student.parameters(),
+                                                self.teacher.parameters()):
+            param_teacher.data = param_teacher.data * base_momentum + \
+                                 param_encoder.data * (1. - base_momentum)
     def build_regressor(self):
         self.mask_regressor = TransformerRegressor(embed_dim=self.hid_dim,
                                                    depth=self.regressor_depth,
@@ -34,10 +41,8 @@ class GIN(PreTrain):
             )
             dpr = [x.item() for x in torch.linspace(0, self.drop_path_rate, self.decoder_depth)]
             self.RAE_decoder = Mlp(
-                embed_dim=self.embed_dim,
-                depth=self.decoder_depth,
-                drop_path_rate=dpr,
-                num_heads=self.decoder_num_heads,
+                in_features=self.output_dim,
+                out_features=self.output_dim
             )
             trunc_normal_(self.mask_token, std=.02)
         else:
