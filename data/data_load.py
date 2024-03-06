@@ -1,6 +1,6 @@
 import random
 import os
-
+from tqdm import tqdm
 import numpy as np
 import torch
 import networkx as nx
@@ -11,9 +11,41 @@ from torch_geometric.loader import DataLoader
 from torch_geometric.loader.cluster import ClusterData
 from torch_geometric.data import Data
 from torch_geometric.datasets import QM9, Planetoid
-import ast
+from torch_geometric.data import InMemoryDataset as IMD
+import re
 
-from utils.extraction import extract_items_from_string
+def find_numbers_and_lists(string):
+    # Find numbers outside lists
+    if string[0] == "v": 
+        number_after_v_or_e_pattern = r"(?<=[ve],)(\d+)?" #^[ve],(\d+)(?:,(\d+))?$
+    else:
+        number_after_v_or_e_pattern = r"(?<=[ve],)(\d+),(\d+)?" 
+    number_after_list_pattern = r"\,(-?\d+\.\d+)" # (?:,(-?\d+\.\d+))?(?:,(-?\d+\.\d+))?
+    former_parts = string.split('[', 1)
+    later_parts = string.split(']', 1)
+    # Extract the number following "v" or "e"
+    number_after_v_or_e = re.findall(number_after_v_or_e_pattern, former_parts[0])
+    if string[0] == "v":
+        number_after_v_or_e = [int(num) for num in number_after_v_or_e] 
+    else:
+        number_after_v_or_e = [int(num) for num in number_after_v_or_e[0]]
+    list_pattern = r"\[(.*?)\]"
+    list = re.findall(list_pattern, string)
+    list = list[0].split(",")
+    list = [float(num) for num in list]
+    # Confirming the approach with adjusted focus
+    if string[0] == "v":
+        number_after_list = re.findall(number_after_list_pattern, later_parts[1])
+        if len(number_after_list) == 0 or number_after_list[0] == '':
+            number_after_list = []
+        else:
+            try:
+                number_after_list = [float(num) for num in number_after_list]
+            except ValueError:
+                print(string)
+        return number_after_v_or_e, list, number_after_list
+    else:
+        return number_after_v_or_e,list
 
 
 def single_graph_load(file):
@@ -22,53 +54,50 @@ def single_graph_load(file):
     nodes_list = []
     edges_list = []
     degree_centrality_list = []
-    betweenness_centrality_list = []
-    eigenvector_centrality_list = []
     for line in file:
         if line.strip().startswith("v"):
-            tokens = extract_items_from_string(line)
+            ids,x,importance = find_numbers_and_lists(line)
             # v nodeID labelID degree
-            id = int(tokens[0])
-            x = tokens[1]
-            degree_centraility = float(tokens[2])
+            id = ids[0]
+            importance = importance[0]
             # eigenvector_centrality = float(tokens[4])
             # betweenness_centrality = float(tokens[5])
-            nodes_list.append((id, {"x": np.array(x)}, {"degree_centrality": degree_centraility}))
+            nodes_list.append([id, {"x": np.array(x),"degree_centrality": importance}])
                                # {"eigenvector_centrality": eigenvector_centrality},
                                # {"betweenness_centrality": betweenness_centrality}))
-            degree_centrality_list.append(degree_centraility)
+            degree_centrality_list.append(importance)
             # betweenness_centrality_list.append(betweenness_centrality)
             # eigenvector_centrality_list.append(eigenvector_centrality)
         if line.strip().startswith("e"):
-            tokens = extract_items_from_string(line)
-            src, dst = int(tokens[0]), int(tokens[1])
-            edge_attr = tokens[2]  # tokens[3:]
-            edges_list.append((src, dst, {"edge_attr": np.array(edge_attr)}))
+            ids,edge_attr = find_numbers_and_lists(line)
+            src, dst = ids[0],ids[1]
+            # edge_attr = tokens[2]  # tokens[3:]
+            edges_list.append([src, dst, {"edge_attr": np.array(edge_attr)}])
 
     graph = nx.Graph()
     graph.add_nodes_from(nodes_list)
     graph.add_edges_from(edges_list)
 
-    print('number of nodes: {}'.format(graph.number_of_nodes()))
-    print('number of edges: {}'.format(graph.number_of_edges()))
     file.close()
-    return graph, np.array(degree_centrality_list), np.array(betweenness_centrality_list), np.array(
-        eigenvector_centrality_list)
+    return graph, np.array(degree_centrality_list)
 
 
 def dataset_load(dataset_name):
-    if dataset_name == "QM9":
-        data_dir = "/mnt/data/lujie/metacounting_dataset/QM9/networkx"
-        graphs = []
-        for file in os.listdir(data_dir):
-            graph, degree_centrality, betweenness_centrality, eigenvector_centrality = single_graph_load(
-                os.path.join(data_dir, file))
-            data = from_networkx(graph, group_node_attrs=['x'],
-                                 group_edge_attrs=['edge_attr'])
-            data.degree_centrality = torch.tensor(degree_centrality)
-            data.betweenness_centrality = torch.tensor(betweenness_centrality)
-            data.eigenvector_centrality = torch.tensor(eigenvector_centrality)
-            graphs.append(data)
+    if os.path.exists(os.path.join("/mnt","data","lujie","metacounting_dataset",dataset_name,dataset_name+".pt")):
+        graphs = torch.load(os.path.join("/mnt","data","lujie","metacounting_dataset",dataset_name,dataset_name+".pt"))
+    else:
+        if dataset_name == "QM9":
+            data_dir = "/mnt/data/lujie/metacounting_dataset/QM9/networkx"
+            graphs = []
+            pbar = tqdm(os.listdir(data_dir))
+            for file in pbar:
+                graph, degree_centrality = single_graph_load(
+                    os.path.join(data_dir, file))
+                data = from_networkx(graph, group_node_attrs=['x'],
+                                    group_edge_attrs=['edge_attr'])
+                data.degree_centrality = torch.tensor(degree_centrality).reshape(-1,1)
+                graphs.append(data)
+            torch.save(graphs,os.path.join("/mnt","data","lujie","metacounting_dataset",dataset_name,dataset_name+".pt"))
     trainsets, val_sets, test_sets = data_split(graphs, 0.8, 0.1)
     train_loader = to_dataloader(trainsets)
     val_loader = to_dataloader(val_sets)

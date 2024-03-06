@@ -42,7 +42,6 @@ def graph_to_file(graph, name, i):
         os.mkdir(os.path.join("/mnt/data/lujie/metacounting_dataset", name, "networkx"))
     with open("/mnt/data/lujie/metacounting_dataset/" + name + "/networkx/" + str(i) + ".txt", "w") as file:
         for node in graph.nodes(data=True):
-            #由于傻逼ast解析不了带空格的格式,所以重新处理的数据集要有逗号分隔
             file.write("v,{},{},{},{},{}\n".format(node[0], node[1]['x'], node[1]['degree_centrality'],
                                                    node[1]['eigenvector_centrality'],
                                                    node[1]['betweenness_centrality']))
