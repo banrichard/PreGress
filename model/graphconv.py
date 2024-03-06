@@ -1,5 +1,6 @@
 import torch.nn as nn
 from torch_geometric.nn import GCNConv, GATConv, SAGEConv, GINConv
+import torch.nn.functional as F
 
 
 class Backbone(nn.Module):
@@ -29,3 +30,20 @@ class Backbone(nn.Module):
                 nn.Linear(in_ch, hid_ch), nn.ReLU(), nn.Linear(hid_ch, hid_ch)), train_eps=True)
         else:
             raise NotImplementedError("Current do not support!")
+
+    def forward(self, x, edge_index, edge_attr):
+        for i in range(self.num_layers):
+            if self.model_type == "GIN" or self.model_type == "GINE" or self.model_type == "GAT" \
+                    or self.model_type == "SAGE":
+                x = self.convs[i](x, edge_index)  # for GIN and GINE
+            elif self.model_type == "Graph" or self.model_type == "GCN":
+                x = self.convs[i](x, edge_index, edge_weight=edge_attr)
+            elif self.model_type == "NN" or self.model_type == "NNGIN" or self.model_type == "NNGINConcat":
+                x = self.convs[i](x=x, edge_index=edge_index, edge_attr=edge_attr)
+            else:
+                print("Unsupported model type!")
+
+            if i < self.num_layers - 1:
+                x = F.dropout(x, p=self.dropout, training=self.training)
+            x = F.relu(x)
+        return x
