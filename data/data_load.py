@@ -13,6 +13,8 @@ from torch_geometric.data import Data
 from torch_geometric.datasets import QM9, Planetoid
 import ast
 
+from utils.extraction import extract_items_from_string
+
 
 def single_graph_load(file):
     file = open(file)
@@ -23,25 +25,24 @@ def single_graph_load(file):
     betweenness_centrality_list = []
     eigenvector_centrality_list = []
     for line in file:
-        # pattern = f"[{line}]"
         if line.strip().startswith("v"):
-            tokens = ast.literal_eval(line)
+            tokens = extract_items_from_string(line)
             # v nodeID labelID degree
-            id = int(tokens[1])
-            x = tokens[2]
-            degree_centraility = float(tokens[3])
-            eigenvector_centrality = float(tokens[4])
-            betweenness_centrality = float(tokens[5])
-            nodes_list.append((id, {"x": np.array(x)}, {"degree_centrality": degree_centraility},
-                               {"eigenvector_centrality": eigenvector_centrality},
-                               {"betweenness_centrality": betweenness_centrality}))
+            id = int(tokens[0])
+            x = tokens[1]
+            degree_centraility = float(tokens[2])
+            # eigenvector_centrality = float(tokens[4])
+            # betweenness_centrality = float(tokens[5])
+            nodes_list.append((id, {"x": np.array(x)}, {"degree_centrality": degree_centraility}))
+                               # {"eigenvector_centrality": eigenvector_centrality},
+                               # {"betweenness_centrality": betweenness_centrality}))
             degree_centrality_list.append(degree_centraility)
-            betweenness_centrality_list.append(betweenness_centrality)
-            eigenvector_centrality_list.append(eigenvector_centrality)
+            # betweenness_centrality_list.append(betweenness_centrality)
+            # eigenvector_centrality_list.append(eigenvector_centrality)
         if line.strip().startswith("e"):
-            tokens = ast.literal_eval(line)
-            src, dst = int(tokens[1]), int(tokens[2])
-            edge_attr = tokens[3]  # tokens[3:]
+            tokens = extract_items_from_string(line)
+            src, dst = int(tokens[0]), int(tokens[1])
+            edge_attr = tokens[2]  # tokens[3:]
             edges_list.append((src, dst, {"edge_attr": np.array(edge_attr)}))
 
     graph = nx.Graph()
