@@ -23,9 +23,9 @@ def single_graph_load(file):
     betweenness_centrality_list = []
     eigenvector_centrality_list = []
     for line in file:
-        pattern = f"[{line}]"
+        # pattern = f"[{line}]"
         if line.strip().startswith("v"):
-            tokens = ast.literal_eval(pattern)
+            tokens = ast.literal_eval(line)
             # v nodeID labelID degree
             id = int(tokens[1])
             x = tokens[2]
@@ -39,7 +39,7 @@ def single_graph_load(file):
             betweenness_centrality_list.append(betweenness_centrality)
             eigenvector_centrality_list.append(eigenvector_centrality)
         if line.strip().startswith("e"):
-            tokens = ast.literal_eval(pattern)
+            tokens = ast.literal_eval(line)
             src, dst = int(tokens[1]), int(tokens[2])
             edge_attr = tokens[3]  # tokens[3:]
             edges_list.append((src, dst, {"edge_attr": np.array(edge_attr)}))
@@ -146,4 +146,4 @@ def load4graph(dataset_name, shot_num=10, num_parts=None):
 
 
 if __name__ == "__main__":
-    single_graph_load("/mnt/data/lujie/metacounting_dataset/QM9/networkx/0.txt")
+    dataset_load("QM9")
