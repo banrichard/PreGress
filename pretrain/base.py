@@ -2,7 +2,7 @@ import torch
 from data.data_load import load4graph
 from model.graphconv import Backbone
 from torch.optim import Adam
-
+import torch.nn as nn
 
 class PreTrain(torch.nn.Module):
     def __init__(self, gnn_type='TransformerConv', dataset_name='QM9', hid_dim=128, gln=2, num_epoch=100):
@@ -13,7 +13,7 @@ class PreTrain(torch.nn.Module):
         self.num_layer = gln
         self.epochs = num_epoch
         self.hid_dim = hid_dim
-
+        self.init_emb = nn.Parameter(torch.randn(self.gnn.input_dim))
     def initialize_gnn(self, input_dim, out_dim):
         if self.gnn_type == "GCN":
             self.gnn = Backbone("GCN", self.num_layer, input_dim, self.hid_dim, output_dim=out_dim)

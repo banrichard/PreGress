@@ -1,6 +1,7 @@
 import torch.nn as nn
 import torch
 from torch.nn.init import trunc_normal_
+from pretrain.matcher import Matcher
 from utils.mask import make_mask
 from base import PreTrain
 from model.mlp import Mlp
@@ -17,7 +18,7 @@ class GIN(PreTrain):
         self.projection_head = nn.Sequential(nn.Linear(hid_dim, hid_dim),
                                              nn.ReLU(inplace=True),
                                              nn.Linear(hid_dim, hid_dim))
-
+        self.matcher = Matcher(self.hid_dim,self.input_dim)
     @torch.no_grad()
     def momentum_update(self, base_momentum=0):
         """Momentum update of the teacher network."""
@@ -57,9 +58,9 @@ class GIN(PreTrain):
     def similarity_loss(self, pred_feat, orig_feat):
         return F.cosine_similarity(pred_feat, orig_feat, dim=1)
 
-    def forward(self, data, use_mask=None):
+    def forward(self, data, use_mask=True):
         x, edge_index, edge_attr, importance = data.x, data.edge_index, data.edge_attr, data.degree_centrality
-        if use_mask is not None:
+        if use_mask:
             mask = make_mask(x)
         else:
             mask = None
@@ -75,9 +76,7 @@ class GIN(PreTrain):
             pos_emd_mask = self.projection_head(pred[mask]).reshape(batch_size, -1, channel)
             _, num_mask, _ = pos_emd_mask.shape
             mask_token = self.mask_token.expand(batch_size, num_mask, -1)
-            x_full = torch.cat([pred, mask_token], dim=1)
-            pos_full = torch.cat([pos_emd_vis, pos_emd_mask], dim=1)
-
-            latent_pred = self.mask_regressor(mask_token, pred, pos_emd_mask, pos_emd_vis, mask)
+            pred_attr = self.matcher(pred[mask])
             # temporarily can not find a good solution to solve the attr loss, current is cossimilarity
-            attr_loss = self.attr_loss(latent_pred, pred)
+            attr_loss = self.attr_loss(pred_attr, x[mask])
+            return importance_loss, attr_loss
