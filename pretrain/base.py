@@ -5,15 +5,15 @@ from torch.optim import Adam
 import torch.nn as nn
 
 class PreTrain(torch.nn.Module):
-    def __init__(self, gnn_type='TransformerConv', dataset_name='QM9', hid_dim=128, gln=2, num_epoch=100):
+    def __init__(self, gnn_type='TransformerConv', dataset_name='QM9', hid_dim=128, num_layer=3, num_epoch=100,dropout=0.5):
         super().__init__()
         self.device = torch.device('cuda:3' if torch.cuda.is_available() else 'cpu')
         self.dataset_name = dataset_name
         self.gnn_type = gnn_type
-        self.num_layer = gln
+        self.num_layer = num_layer
         self.epochs = num_epoch
         self.hid_dim = hid_dim
-        self.init_emb = nn.Parameter(torch.randn(self.gnn.input_dim))
+        self.dropout = dropout
     def initialize_gnn(self, input_dim, out_dim):
         if self.gnn_type == "GCN":
             self.gnn = Backbone("GCN", self.num_layer, input_dim, self.hid_dim, output_dim=out_dim)
@@ -22,7 +22,7 @@ class PreTrain(torch.nn.Module):
         elif self.gnn_type == "SAGE":
             self.gnn = Backbone("SAGE", self.num_layer, input_dim, self.hid_dim, out_dim)
         elif self.gnn_type == "GIN":
-            self.gnn = Backbone("GIN", self.num_layer, input_dim, self.hid_dim, out_dim)
+            self.gnn = Backbone("GIN", self.num_layer, input_dim, self.hid_dim, out_dim,self.dropout)
         else:
             raise ValueError(f"Unsupported GNN type: {self.gnn_type}")
         self.gnn.to(self.device)

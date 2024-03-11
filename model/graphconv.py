@@ -4,28 +4,29 @@ import torch.nn.functional as F
 
 
 class Backbone(nn.Module):
-    def __init__(self, type, num_layers, input_dim, hidden_dim, output_dim):
+    def __init__(self, type, num_layers, input_dim, hidden_dim, output_dim,dropout= 0.5):
         super().__init__()
-        self.type = type
+        self.model_type = type
         self.num_layers = num_layers
         self.input_dim = input_dim
-        self.hidden_dim = hidden_dim
+        self.hid_dim = hidden_dim
         self.output_dim = output_dim
+        self.dropout = dropout
         self.conv = self.build_conv_layers()
-        self.conv_layers = nn.ModuleList()
+        self.convs = nn.ModuleList()
         for l in range(self.num_layers):
-            hidden_input_dim = self.input_dim if l == 0 else self.hidden_dim
-            hidden_output_dim = self.hidden_dim
-            self.conv_layers.append(self.conv(hidden_input_dim, hidden_output_dim))
+            hidden_input_dim = self.input_dim if l == 0 else self.hid_dim
+            hidden_output_dim = self.hid_dim
+            self.convs.append(self.conv(hidden_input_dim, hidden_output_dim))
 
     def build_conv_layers(self):
-        if self.type == "GCN":
+        if self.model_type == "GCN":
             return GCNConv
-        elif self.type == "GAT":
+        elif self.model_type == "GAT":
             return GATConv
-        elif self.type == "SAGE":
+        elif self.model_type == "SAGE":
             return SAGEConv
-        elif self.type == "GIN":
+        elif self.model_type == "GIN":
             return lambda in_ch, hid_ch: GINConv(nn=nn.Sequential(
                 nn.Linear(in_ch, hid_ch), nn.ReLU(), nn.Linear(hid_ch, hid_ch)), train_eps=True)
         else:

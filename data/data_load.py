@@ -82,7 +82,7 @@ def single_graph_load(file):
     return graph, np.array(degree_centrality_list)
 
 
-def dataset_load(dataset_name):
+def dataset_load(dataset_name,batch_size=256):
     if os.path.exists(os.path.join("/mnt","data","lujie","metacounting_dataset",dataset_name,dataset_name+".pt")):
         graphs = torch.load(os.path.join("/mnt","data","lujie","metacounting_dataset",dataset_name,dataset_name+".pt"))
     else:
@@ -99,9 +99,9 @@ def dataset_load(dataset_name):
                 graphs.append(data)
             torch.save(graphs,os.path.join("/mnt","data","lujie","metacounting_dataset",dataset_name,dataset_name+".pt"))
     trainsets, val_sets, test_sets = data_split(graphs, 0.8, 0.1)
-    train_loader = to_dataloader(trainsets)
-    val_loader = to_dataloader(val_sets)
-    test_loader = to_dataloader(test_sets)
+    train_loader = to_dataloader(trainsets,batch_size=batch_size)
+    val_loader = to_dataloader(val_sets,batch_size=batch_size)
+    test_loader = to_dataloader(test_sets,batch_size=batch_size)
     return train_loader, val_loader, test_loader
 
 
@@ -176,4 +176,6 @@ def load4graph(dataset_name, shot_num=10, num_parts=None):
 
 
 if __name__ == "__main__":
-    dataset_load("QM9")
+    train_loader,_,_ = dataset_load("QM9")
+    for i,batch in enumerate(train_loader):
+        x,edge_index,edge_attr,importance = batch

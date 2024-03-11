@@ -1,7 +1,7 @@
 import math
 
 from torch import nn
-
+import torch.nn.functional as F
 
 class Matcher(nn.Module):
     '''
@@ -19,12 +19,13 @@ class Matcher(nn.Module):
         self.cache = None
         self.temperature = temperature
 
-    def forward(self, x, ty, use_norm=True):
-        tx = self.drop(self.linear(x))
-        if use_norm:
-            return self.cosine(tx, ty) / self.temperature
-        else:
-            return (tx * ty).sum(dim=-1) / self.sqrt_hd
+    def forward(self, x):
+        tx = F.gelu(self.linear(x))
+        return tx
+        # if use_norm:
+        #     return self.cosine(tx, ty) / self.temperature
+        # else:
+        #     return (tx * ty).sum(dim=-1) / self.sqrt_hd
 
     def __repr__(self):
         return '{}(n_hid={})'.format(

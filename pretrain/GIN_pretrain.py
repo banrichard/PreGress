@@ -3,22 +3,25 @@ import torch
 from torch.nn.init import trunc_normal_
 from pretrain.matcher import Matcher
 from utils.mask import make_mask
-from base import PreTrain
+from pretrain.base import PreTrain
 from model.mlp import Mlp
 from model.attention import TransformerRegressor
 import torch.nn.functional as F
 
 
 class GIN(PreTrain):
-    def __init__(self, hid_dim):
-        self.gnn_type = "GIN"
-        self.load_graph_data()
-        self.initialize_gnn(self.input_dim, hid_dim)
+    def __init__(self, num_layer,input_dim,hid_dim,output_dim,dropout):
+        super().__init__("GIN",dropout=dropout)
+        self.num_layer = num_layer
+        self.input_dim = input_dim
+        self.output_dim = output_dim
         self.hid_dim = hid_dim
+        self.initialize_gnn(self.input_dim, self.hid_dim)
+        self.init_emb = nn.Parameter(torch.randn(self.gnn.input_dim))
         self.projection_head = nn.Sequential(nn.Linear(hid_dim, hid_dim),
                                              nn.ReLU(inplace=True),
-                                             nn.Linear(hid_dim, hid_dim))
-        self.matcher = Matcher(self.hid_dim,self.input_dim)
+                                             nn.Linear(hid_dim, output_dim))
+        self.matcher = Mlp(self.hid_dim,self.hid_dim,self.input_dim)
     @torch.no_grad()
     def momentum_update(self, base_momentum=0):
         """Momentum update of the teacher network."""
@@ -35,7 +38,6 @@ class GIN(PreTrain):
 
     def build_masked_decoder(self):
         if self.mask_ratio > 0.:
-            # print_log(f'[Point-RAE] build masked decoder for feature prediction ...', logger='Point-RAE')
             self.mask_token = nn.Parameter(torch.zeros(1, 1, self.embed_dim))
             self.decoder_pos_embed = nn.Sequential(
                 nn.Linear(3, 128),
@@ -53,10 +55,10 @@ class GIN(PreTrain):
             self.RAE_decoder = None
 
     def importance_loss(self, pred_importance, target_importance):
-        return F.mse_loss(pred_importance, target_importance, reduction='mean')
+        return F.mse_loss(pred_importance.float(), target_importance.float(), reduction='mean')
 
     def similarity_loss(self, pred_feat, orig_feat):
-        return F.cosine_similarity(pred_feat, orig_feat, dim=1)
+        return F.cosine_similarity(pred_feat, orig_feat, dim=1).sum(dim=-1).to(torch.float32)
 
     def forward(self, data, use_mask=True):
         x, edge_index, edge_attr, importance = data.x, data.edge_index, data.edge_attr, data.degree_centrality
@@ -68,15 +70,15 @@ class GIN(PreTrain):
         pred = self.gnn(x, edge_index, edge_attr)
         pred_importance = self.projection_head(pred)
         importance_loss = self.importance_loss(pred_importance, importance)
-        batch_size, num_nodes, channel = pred.shape
-        self.mask_token = nn.Parameter(torch.zeros(1, 1, self.hid_dim))
+        # num_nodes, channel = pred.shape
+        # self.mask_token = nn.Parameter(torch.zeros(1, 1, self.hid_dim))
 
-        if self.mask_token is not None:
-            pos_emd_vis = self.projection_head(pred[~mask]).reshape(batch_size, -1, channel)
-            pos_emd_mask = self.projection_head(pred[mask]).reshape(batch_size, -1, channel)
-            _, num_mask, _ = pos_emd_mask.shape
-            mask_token = self.mask_token.expand(batch_size, num_mask, -1)
-            pred_attr = self.matcher(pred[mask])
+        if mask is not None:
+            # pos_emd_vis = self.projection_head(pred[~mask]).reshape(batch_size, -1, channel)
+            # pos_emd_mask = self.projection_head(pred[~mask]).reshape(-1, channel)
+            # _, num_mask, _ = pos_emd_mask.shape
+            # mask_token = self.mask_token.expand(batch_size, num_mask, -1)
+            pred_attr = self.matcher.forward(pred[~mask])
             # temporarily can not find a good solution to solve the attr loss, current is cossimilarity
-            attr_loss = self.attr_loss(pred_attr, x[mask])
+            attr_loss = self.similarity_loss(pred_attr, data.x[~mask])
             return importance_loss, attr_loss
