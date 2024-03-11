@@ -27,7 +27,7 @@ train_config = {
     "max_ngel": 8,  # max_number_graph_edge_labels: 16, 64, 256
     "base": 2,
     "cuda": True,
-    "gpu_id": 0,
+    "gpu_id": 3,
     "num_workers": 16,
     "epochs": 200,
     "batch_size": 256,
@@ -49,7 +49,7 @@ train_config = {
     "weight_decay_var": 0.1,
     "weight_decay_film": 0.0001,
     "decay_factor": 0.1,
-    "attr_ratio": 0.7,
+    "attr_ratio": 0.5,
     "decay_patience": 20,
     "max_grad_norm": 8,
     "model": "GIN",  # CNN, RNN, TXL, RGCN, RGIN, RSIN
@@ -149,7 +149,7 @@ def train(
         total_loss_per_step = (
             train_config["attr_ratio"] * importance_loss
             + (1 - train_config["attr_ratio"]) * attr_loss
-        )
+        ).abs_()
         total_loss_per_step = total_loss_per_step.to(torch.float32)
         with torch.autograd.detect_anomaly():
             total_loss_per_step.backward()
@@ -213,7 +213,7 @@ def evaluate(model, data_type, data_loader, config, logger=None, writer=None):
     total_cnt = 1e-6
 
     evaluate_results = {
-        "error": {"mae": 0.0, "mse": 0.0},
+        "error": {"importance_loss": 0.0, "attr_loss": 0.0},
         "time": {"avg": list(), "total": 0.0},
     }
 
@@ -251,6 +251,7 @@ def evaluate(model, data_type, data_loader, config, logger=None, writer=None):
     # bp_crit_mean = lambda pred, target: F.l1_loss(F.leaky_relu(pred), target)
     # bp_crit_var = lambda pred, target: F.mse_loss(F.leaky_relu(pred), target)
     model.eval()
+    model = model.to('cpu')
     total_time = 0
     with torch.no_grad():
         for batch_id, batch in enumerate(data_loader):
@@ -267,7 +268,7 @@ def evaluate(model, data_type, data_loader, config, logger=None, writer=None):
             bp_loss = (
                 config["attr_ratio"] * importance_loss
                 + (1 - config["attr_ratio"]) * attr_loss
-            )
+            ).abs_()
             # gt_distribution = torch.distributions.Normal(card, torch.sqrt(var))
             # bp_loss = wasserstein_loss(gt_distribution, distribution_cpu) + train_config[
             #     "weight_decay_film"] * filmreg.cpu()  # -distribution_cpu.log_prob(card).mean()
@@ -295,8 +296,8 @@ def evaluate(model, data_type, data_loader, config, logger=None, writer=None):
                     int(epoch),
                     int(config["epochs"]),
                     (data_type),
-                    int(batch_id / config["batch_size"]),
-                    int(epoch_step / config["batch_size"]),
+                    int(batch_id),
+                    int(epoch_step),
                     float(bp_loss_item),
                 )
             )
@@ -317,7 +318,7 @@ def evaluate(model, data_type, data_loader, config, logger=None, writer=None):
     return mean_bp_loss, evaluate_results, total_time
 
 
-def test(save_model_dir, test_loaders, config, graph, logger, writer):
+def test(save_model_dir, test_loaders, config, logger, writer):
     # global loader_idx, mean_reg_loss, mean_bp_loss, mean_var_loss, evaluate_results, _time, f
     total_test_time = 0
     model.load_state_dict(
@@ -417,7 +418,9 @@ if __name__ == "__main__":
         # load data
         # os.makedirs(train_config["save_data_dir"], exist_ok=True)
     # decompose the query
-    train_loader, val_loader, test_loader = dataset_load("QM9",batch_size=train_config['batch_size'])
+    train_loader, val_loader, test_loader = dataset_load(
+        "QM9", batch_size=train_config["batch_size"]
+    )
     # config['init_g_dim'] = graph.x.size(1)
     # train_config.update({'init_g_dim': graph.x.size(1)})
     # construct the model
@@ -428,7 +431,7 @@ if __name__ == "__main__":
             train_config["init_g_dim"],
             train_config["num_g_hid"],
             train_config["out_g_ch"],
-            train_config['dropout']
+            train_config["dropout"],
         )
     else:
         raise NotImplementedError(
@@ -472,7 +475,7 @@ if __name__ == "__main__":
         #     cross_validate(model=model, query_set=QS, device=device, config=train_config, graph=graph, logger=logger,
         #                    writer=writer)
         # else:
-        mean_reg_loss, mean_bp_loss, _time = train(
+        mean_bp_loss, _time = train(
             model,
             optimizer=optimizer,
             scheduler=scheduler,
@@ -489,29 +492,17 @@ if __name__ == "__main__":
         if scheduler and (epoch + 1) % train_config["decay_patience"] == 0:
             scheduler.step()
             # torch.save(model.state_dict(), os.path.join(save_model_dir, 'epoch%d.pt' % (epoch)))
-        mean_reg_loss, mean_bp_loss, mean_var_loss, evaluate_results, total_time = (
-            evaluate(
-                model=model,
-                data_type="val",
-                data_loader=val_loader,
-                config=train_config,
-                logger=logger,
-                writer=writer,
-            )
+        mean_bp_loss, evaluate_results, total_time = evaluate(
+            model=model,
+            data_type="val",
+            data_loader=val_loader,
+            config=train_config,
+            logger=logger,
+            writer=writer,
         )
         if writer:
             writer.add_scalar(
-                "%s/REG-%s-epoch" % ("val", train_config["reg_loss"]),
-                mean_reg_loss,
-                epoch,
-            )
-            writer.add_scalar(
                 "%s/BP-%s-epoch" % ("val", train_config["bp_loss"]), mean_bp_loss, epoch
-            )
-            writer.add_scalar(
-                "%s/Var-%s-epoch" % ("val", train_config["bp_loss"]),
-                mean_var_loss,
-                epoch,
             )
             total_dev_time += total_time
             # cur_reg_loss[loader_idx] = mean_reg_loss
@@ -523,22 +514,22 @@ if __name__ == "__main__":
             #     for key1, key2 in zip(cur_reg_loss.keys(), best_reg_losses.keys()):
             #         best_reg_losses[key2] = cur_reg_loss[key1]
             #     best_reg_epochs['val'] = epoch
-        err = best_reg_losses - mean_reg_loss
+        err = best_bp_losses - mean_bp_loss
         if err > 1e-4:
             tolerance_cnt = 0
-            best_reg_losses = mean_reg_loss
+            best_reg_losses = mean_bp_loss
             # best_reg_epochs["val"] = epoch
             logger.info(
                 "data_type: {:<5s}\t\tbest mean loss: {:.3f} (epoch: {:0>3d})".format(
-                    "val", mean_reg_loss, epoch
+                    "val", mean_bp_loss, epoch
                 )
             )
             torch.save(
                 model.state_dict(),
                 os.path.join(
                     save_model_dir,
-                    "best_epoch_{:s}_{:s}_edge_gsl.pt".format(
-                        train_config["predict_net"], train_config["graph_net"]
+                    "best_epoch_{:s}.pt".format(
+                        train_config["model"]
                     ),
                 ),
             )

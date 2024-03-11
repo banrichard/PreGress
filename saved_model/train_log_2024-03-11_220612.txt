@@ -1,0 +1,665 @@
+[ Mon Mar 11 22:06:35 2024 ] GIN(
+  (gnn): Backbone(
+    (convs): ModuleList(
+      (0): GINConv(nn=Sequential(
+        (0): Linear(in_features=11, out_features=128, bias=True)
+        (1): ReLU()
+        (2): Linear(in_features=128, out_features=128, bias=True)
+      ))
+      (1-2): 2 x GINConv(nn=Sequential(
+        (0): Linear(in_features=128, out_features=128, bias=True)
+        (1): ReLU()
+        (2): Linear(in_features=128, out_features=128, bias=True)
+      ))
+    )
+  )
+  (projection_head): Sequential(
+    (0): Linear(in_features=128, out_features=128, bias=True)
+    (1): ReLU(inplace=True)
+    (2): Linear(in_features=128, out_features=1, bias=True)
+  )
+  (matcher): Mlp(
+    (fc1): Linear(in_features=128, out_features=128, bias=True)
+    (act): ReLU()
+    (fc2): Linear(in_features=128, out_features=11, bias=True)
+    (drop): Dropout(p=0.0, inplace=False)
+  )
+)
+[ Mon Mar 11 22:06:35 2024 ] num of parameters: 118682
+[ Mon Mar 11 22:06:38 2024 ] epoch: 000/200	data_type: train	batch: 00000/00001	bp loss: 29.13896	
+[ Mon Mar 11 22:06:48 2024 ] epoch: 000/200	data_type: train	batch: 00001/00001	bp loss: 237.53134	
+[ Mon Mar 11 22:06:48 2024 ] epoch: 000/200	data_type: train	bp loss: 119.7342
+[ Mon Mar 11 22:06:53 2024 ] epoch: 000/200	data_type: val  	batch: 51/52	bp loss: 21.8211	
+[ Mon Mar 11 22:06:53 2024 ] epoch: 000/200	data_type: val  		bp loss: 196.3353
+[ Mon Mar 11 22:06:56 2024 ] data_type: val  		best mean loss: 196.335 (epoch: 000)
+[ Mon Mar 11 22:06:57 2024 ] epoch: 001/200	data_type: train	batch: 00000/00001	bp loss: 201.16554	
+[ Mon Mar 11 22:07:07 2024 ] epoch: 001/200	data_type: train	batch: 00001/00001	bp loss: 81.94757	
+[ Mon Mar 11 22:07:07 2024 ] epoch: 001/200	data_type: train	bp loss: 165.6467
+[ Mon Mar 11 22:07:13 2024 ] epoch: 001/200	data_type: val  	batch: 51/52	bp loss: 3.3909	
+[ Mon Mar 11 22:07:13 2024 ] epoch: 001/200	data_type: val  		bp loss: 28.7820
+[ Mon Mar 11 22:07:18 2024 ] data_type: val  		best mean loss: 28.782 (epoch: 001)
+[ Mon Mar 11 22:07:19 2024 ] epoch: 002/200	data_type: train	batch: 00000/00001	bp loss: 5.72140	
+[ Mon Mar 11 22:07:30 2024 ] epoch: 002/200	data_type: train	batch: 00001/00001	bp loss: 21.90979	
+[ Mon Mar 11 22:07:30 2024 ] epoch: 002/200	data_type: train	bp loss: 12.7243
+[ Mon Mar 11 22:07:36 2024 ] epoch: 002/200	data_type: val  	batch: 51/52	bp loss: 2.1219	
+[ Mon Mar 11 22:07:36 2024 ] epoch: 002/200	data_type: val  		bp loss: 17.9049
+[ Mon Mar 11 22:07:39 2024 ] data_type: val  		best mean loss: 17.905 (epoch: 002)
+[ Mon Mar 11 22:07:41 2024 ] epoch: 003/200	data_type: train	batch: 00000/00001	bp loss: 5.08613	
+[ Mon Mar 11 22:07:51 2024 ] epoch: 003/200	data_type: train	batch: 00001/00001	bp loss: 21.72548	
+[ Mon Mar 11 22:07:51 2024 ] epoch: 003/200	data_type: train	bp loss: 14.4023
+[ Mon Mar 11 22:07:57 2024 ] epoch: 003/200	data_type: val  	batch: 51/52	bp loss: 3.4740	
+[ Mon Mar 11 22:07:57 2024 ] epoch: 003/200	data_type: val  		bp loss: 25.6780
+[ Mon Mar 11 22:08:01 2024 ] data_type: val  		best mean loss: 25.678 (epoch: 003)
+[ Mon Mar 11 22:08:02 2024 ] epoch: 004/200	data_type: train	batch: 00000/00001	bp loss: 32.74609	
+[ Mon Mar 11 22:08:15 2024 ] epoch: 004/200	data_type: train	batch: 00001/00001	bp loss: 19.86761	
+[ Mon Mar 11 22:08:16 2024 ] epoch: 004/200	data_type: train	bp loss: 28.2568
+[ Mon Mar 11 22:08:22 2024 ] epoch: 004/200	data_type: val  	batch: 51/52	bp loss: 0.2756	
+[ Mon Mar 11 22:08:22 2024 ] epoch: 004/200	data_type: val  		bp loss: 6.7792
+[ Mon Mar 11 22:08:25 2024 ] data_type: val  		best mean loss: 6.779 (epoch: 004)
+[ Mon Mar 11 22:08:26 2024 ] epoch: 005/200	data_type: train	batch: 00000/00001	bp loss: 0.14114	
+[ Mon Mar 11 22:08:41 2024 ] epoch: 005/200	data_type: train	batch: 00001/00001	bp loss: 6.35980	
+[ Mon Mar 11 22:08:42 2024 ] epoch: 005/200	data_type: train	bp loss: 3.2531
+[ Mon Mar 11 22:08:47 2024 ] epoch: 005/200	data_type: val  	batch: 51/52	bp loss: 0.8918	
+[ Mon Mar 11 22:08:47 2024 ] epoch: 005/200	data_type: val  		bp loss: 4.9086
+[ Mon Mar 11 22:08:49 2024 ] data_type: val  		best mean loss: 4.909 (epoch: 005)
+[ Mon Mar 11 22:08:51 2024 ] epoch: 006/200	data_type: train	batch: 00000/00001	bp loss: 2.52177	
+[ Mon Mar 11 22:09:07 2024 ] epoch: 006/200	data_type: train	batch: 00001/00001	bp loss: 13.97387	
+[ Mon Mar 11 22:09:07 2024 ] epoch: 006/200	data_type: train	bp loss: 5.9085
+[ Mon Mar 11 22:09:14 2024 ] epoch: 006/200	data_type: val  	batch: 51/52	bp loss: 1.2426	
+[ Mon Mar 11 22:09:14 2024 ] epoch: 006/200	data_type: val  		bp loss: 13.0271
+[ Mon Mar 11 22:09:17 2024 ] data_type: val  		best mean loss: 13.027 (epoch: 006)
+[ Mon Mar 11 22:09:19 2024 ] epoch: 007/200	data_type: train	batch: 00000/00001	bp loss: 16.78644	
+[ Mon Mar 11 22:09:34 2024 ] epoch: 007/200	data_type: train	batch: 00001/00001	bp loss: 8.24407	
+[ Mon Mar 11 22:09:34 2024 ] epoch: 007/200	data_type: train	bp loss: 14.8699
+[ Mon Mar 11 22:09:41 2024 ] epoch: 007/200	data_type: val  	batch: 51/52	bp loss: 0.2504	
+[ Mon Mar 11 22:09:41 2024 ] epoch: 007/200	data_type: val  		bp loss: 3.6503
+[ Mon Mar 11 22:09:43 2024 ] data_type: val  		best mean loss: 3.650 (epoch: 007)
+[ Mon Mar 11 22:09:44 2024 ] epoch: 008/200	data_type: train	batch: 00000/00001	bp loss: 1.44882	
+[ Mon Mar 11 22:10:00 2024 ] epoch: 008/200	data_type: train	batch: 00001/00001	bp loss: 3.84844	
+[ Mon Mar 11 22:10:00 2024 ] epoch: 008/200	data_type: train	bp loss: 2.0467
+[ Mon Mar 11 22:10:05 2024 ] epoch: 008/200	data_type: val  	batch: 51/52	bp loss: 0.1050	
+[ Mon Mar 11 22:10:05 2024 ] epoch: 008/200	data_type: val  		bp loss: 2.0905
+[ Mon Mar 11 22:10:08 2024 ] data_type: val  		best mean loss: 2.091 (epoch: 008)
+[ Mon Mar 11 22:10:09 2024 ] epoch: 009/200	data_type: train	batch: 00000/00001	bp loss: 1.52200	
+[ Mon Mar 11 22:10:24 2024 ] epoch: 009/200	data_type: train	batch: 00001/00001	bp loss: 0.16131	
+[ Mon Mar 11 22:10:25 2024 ] epoch: 009/200	data_type: train	bp loss: 1.5039
+[ Mon Mar 11 22:10:30 2024 ] epoch: 009/200	data_type: val  	batch: 51/52	bp loss: 0.0592	
+[ Mon Mar 11 22:10:30 2024 ] epoch: 009/200	data_type: val  		bp loss: 0.9251
+[ Mon Mar 11 22:10:32 2024 ] data_type: val  		best mean loss: 0.925 (epoch: 009)
+[ Mon Mar 11 22:10:34 2024 ] epoch: 010/200	data_type: train	batch: 00000/00001	bp loss: 0.00544	
+[ Mon Mar 11 22:10:49 2024 ] epoch: 010/200	data_type: train	batch: 00001/00001	bp loss: 1.45602	
+[ Mon Mar 11 22:10:50 2024 ] epoch: 010/200	data_type: train	bp loss: 1.5118
+[ Mon Mar 11 22:10:55 2024 ] epoch: 010/200	data_type: val  	batch: 51/52	bp loss: 0.4049	
+[ Mon Mar 11 22:10:55 2024 ] epoch: 010/200	data_type: val  		bp loss: 0.7001
+[ Mon Mar 11 22:10:57 2024 ] data_type: val  		best mean loss: 0.700 (epoch: 010)
+[ Mon Mar 11 22:10:59 2024 ] epoch: 011/200	data_type: train	batch: 00000/00001	bp loss: 3.69493	
+[ Mon Mar 11 22:11:14 2024 ] epoch: 011/200	data_type: train	batch: 00001/00001	bp loss: 1.21151	
+[ Mon Mar 11 22:11:14 2024 ] epoch: 011/200	data_type: train	bp loss: 1.5759
+[ Mon Mar 11 22:11:20 2024 ] epoch: 011/200	data_type: val  	batch: 51/52	bp loss: 0.1432	
+[ Mon Mar 11 22:11:20 2024 ] epoch: 011/200	data_type: val  		bp loss: 1.2569
+[ Mon Mar 11 22:11:22 2024 ] data_type: val  		best mean loss: 1.257 (epoch: 011)
+[ Mon Mar 11 22:11:24 2024 ] epoch: 012/200	data_type: train	batch: 00000/00001	bp loss: 3.92670	
+[ Mon Mar 11 22:11:39 2024 ] epoch: 012/200	data_type: train	batch: 00001/00001	bp loss: 0.60220	
+[ Mon Mar 11 22:11:39 2024 ] epoch: 012/200	data_type: train	bp loss: 1.8712
+[ Mon Mar 11 22:11:45 2024 ] epoch: 012/200	data_type: val  	batch: 51/52	bp loss: 0.0176	
+[ Mon Mar 11 22:11:45 2024 ] epoch: 012/200	data_type: val  		bp loss: 1.7030
+[ Mon Mar 11 22:11:48 2024 ] data_type: val  		best mean loss: 1.703 (epoch: 012)
+[ Mon Mar 11 22:11:50 2024 ] epoch: 013/200	data_type: train	batch: 00000/00001	bp loss: 3.86436	
+[ Mon Mar 11 22:12:05 2024 ] epoch: 013/200	data_type: train	batch: 00001/00001	bp loss: 0.94037	
+[ Mon Mar 11 22:12:05 2024 ] epoch: 013/200	data_type: train	bp loss: 2.0294
+[ Mon Mar 11 22:12:11 2024 ] epoch: 013/200	data_type: val  	batch: 51/52	bp loss: 1.3030	
+[ Mon Mar 11 22:12:11 2024 ] epoch: 013/200	data_type: val  		bp loss: 7.7762
+[ Mon Mar 11 22:12:13 2024 ] data_type: val  		best mean loss: 7.776 (epoch: 013)
+[ Mon Mar 11 22:12:15 2024 ] epoch: 014/200	data_type: train	batch: 00000/00001	bp loss: 7.04273	
+[ Mon Mar 11 22:12:29 2024 ] epoch: 014/200	data_type: train	batch: 00001/00001	bp loss: 6.19734	
+[ Mon Mar 11 22:12:30 2024 ] epoch: 014/200	data_type: train	bp loss: 7.3155
+[ Mon Mar 11 22:12:36 2024 ] epoch: 014/200	data_type: val  	batch: 51/52	bp loss: 1.1096	
+[ Mon Mar 11 22:12:36 2024 ] epoch: 014/200	data_type: val  		bp loss: 5.5080
+[ Mon Mar 11 22:12:38 2024 ] data_type: val  		best mean loss: 5.508 (epoch: 014)
+[ Mon Mar 11 22:12:40 2024 ] epoch: 015/200	data_type: train	batch: 00000/00001	bp loss: 4.13100	
+[ Mon Mar 11 22:12:55 2024 ] epoch: 015/200	data_type: train	batch: 00001/00001	bp loss: 2.45667	
+[ Mon Mar 11 22:12:55 2024 ] epoch: 015/200	data_type: train	bp loss: 4.0666
+[ Mon Mar 11 22:13:00 2024 ] epoch: 015/200	data_type: val  	batch: 51/52	bp loss: 0.4548	
+[ Mon Mar 11 22:13:00 2024 ] epoch: 015/200	data_type: val  		bp loss: 4.6839
+[ Mon Mar 11 22:13:03 2024 ] data_type: val  		best mean loss: 4.684 (epoch: 015)
+[ Mon Mar 11 22:13:04 2024 ] epoch: 016/200	data_type: train	batch: 00000/00001	bp loss: 5.76380	
+[ Mon Mar 11 22:13:19 2024 ] epoch: 016/200	data_type: train	batch: 00001/00001	bp loss: 1.37684	
+[ Mon Mar 11 22:13:20 2024 ] epoch: 016/200	data_type: train	bp loss: 4.1564
+[ Mon Mar 11 22:13:25 2024 ] epoch: 016/200	data_type: val  	batch: 51/52	bp loss: 0.1519	
+[ Mon Mar 11 22:13:25 2024 ] epoch: 016/200	data_type: val  		bp loss: 4.6573
+[ Mon Mar 11 22:13:27 2024 ] data_type: val  		best mean loss: 4.657 (epoch: 016)
+[ Mon Mar 11 22:13:28 2024 ] epoch: 017/200	data_type: train	batch: 00000/00001	bp loss: 2.58981	
+[ Mon Mar 11 22:13:44 2024 ] epoch: 017/200	data_type: train	batch: 00001/00001	bp loss: 3.53337	
+[ Mon Mar 11 22:13:44 2024 ] epoch: 017/200	data_type: train	bp loss: 4.5963
+[ Mon Mar 11 22:13:48 2024 ] epoch: 017/200	data_type: val  	batch: 51/52	bp loss: 0.1620	
+[ Mon Mar 11 22:13:48 2024 ] epoch: 017/200	data_type: val  		bp loss: 2.8689
+[ Mon Mar 11 22:13:50 2024 ] data_type: val  		best mean loss: 2.869 (epoch: 017)
+[ Mon Mar 11 22:13:52 2024 ] epoch: 018/200	data_type: train	batch: 00000/00001	bp loss: 3.03269	
+[ Mon Mar 11 22:14:08 2024 ] epoch: 018/200	data_type: train	batch: 00001/00001	bp loss: 3.16725	
+[ Mon Mar 11 22:14:08 2024 ] epoch: 018/200	data_type: train	bp loss: 3.2375
+[ Mon Mar 11 22:14:12 2024 ] epoch: 018/200	data_type: val  	batch: 51/52	bp loss: 0.6657	
+[ Mon Mar 11 22:14:12 2024 ] epoch: 018/200	data_type: val  		bp loss: 5.7593
+[ Mon Mar 11 22:14:14 2024 ] data_type: val  		best mean loss: 5.759 (epoch: 018)
+[ Mon Mar 11 22:14:16 2024 ] epoch: 019/200	data_type: train	batch: 00000/00001	bp loss: 6.65343	
+[ Mon Mar 11 22:14:31 2024 ] epoch: 019/200	data_type: train	batch: 00001/00001	bp loss: 3.49555	
+[ Mon Mar 11 22:14:32 2024 ] epoch: 019/200	data_type: train	bp loss: 5.0951
+[ Mon Mar 11 22:14:36 2024 ] epoch: 019/200	data_type: val  	batch: 51/52	bp loss: 0.3943	
+[ Mon Mar 11 22:14:36 2024 ] epoch: 019/200	data_type: val  		bp loss: 2.9706
+[ Mon Mar 11 22:14:38 2024 ] data_type: val  		best mean loss: 2.971 (epoch: 019)
+[ Mon Mar 11 22:14:40 2024 ] epoch: 020/200	data_type: train	batch: 00000/00001	bp loss: 1.71653	
+[ Mon Mar 11 22:14:55 2024 ] epoch: 020/200	data_type: train	batch: 00001/00001	bp loss: 1.44526	
+[ Mon Mar 11 22:14:55 2024 ] epoch: 020/200	data_type: train	bp loss: 2.6559
+[ Mon Mar 11 22:14:59 2024 ] epoch: 020/200	data_type: val  	batch: 51/52	bp loss: 0.5662	
+[ Mon Mar 11 22:14:59 2024 ] epoch: 020/200	data_type: val  		bp loss: 2.7560
+[ Mon Mar 11 22:15:01 2024 ] data_type: val  		best mean loss: 2.756 (epoch: 020)
+[ Mon Mar 11 22:15:03 2024 ] epoch: 021/200	data_type: train	batch: 00000/00001	bp loss: 2.97514	
+[ Mon Mar 11 22:15:19 2024 ] epoch: 021/200	data_type: train	batch: 00001/00001	bp loss: 2.04717	
+[ Mon Mar 11 22:15:19 2024 ] epoch: 021/200	data_type: train	bp loss: 2.3132
+[ Mon Mar 11 22:15:23 2024 ] epoch: 021/200	data_type: val  	batch: 51/52	bp loss: 0.4990	
+[ Mon Mar 11 22:15:23 2024 ] epoch: 021/200	data_type: val  		bp loss: 1.3279
+[ Mon Mar 11 22:15:25 2024 ] data_type: val  		best mean loss: 1.328 (epoch: 021)
+[ Mon Mar 11 22:15:27 2024 ] epoch: 022/200	data_type: train	batch: 00000/00001	bp loss: 1.31002	
+[ Mon Mar 11 22:15:43 2024 ] epoch: 022/200	data_type: train	batch: 00001/00001	bp loss: 0.47332	
+[ Mon Mar 11 22:15:43 2024 ] epoch: 022/200	data_type: train	bp loss: 1.0458
+[ Mon Mar 11 22:15:48 2024 ] epoch: 022/200	data_type: val  	batch: 51/52	bp loss: 0.1829	
+[ Mon Mar 11 22:15:48 2024 ] epoch: 022/200	data_type: val  		bp loss: 1.0500
+[ Mon Mar 11 22:15:50 2024 ] data_type: val  		best mean loss: 1.050 (epoch: 022)
+[ Mon Mar 11 22:15:51 2024 ] epoch: 023/200	data_type: train	batch: 00000/00001	bp loss: 0.31309	
+[ Mon Mar 11 22:16:07 2024 ] epoch: 023/200	data_type: train	batch: 00001/00001	bp loss: 0.64914	
+[ Mon Mar 11 22:16:07 2024 ] epoch: 023/200	data_type: train	bp loss: 1.2873
+[ Mon Mar 11 22:16:12 2024 ] epoch: 023/200	data_type: val  	batch: 51/52	bp loss: 0.1195	
+[ Mon Mar 11 22:16:12 2024 ] epoch: 023/200	data_type: val  		bp loss: 1.1357
+[ Mon Mar 11 22:16:14 2024 ] data_type: val  		best mean loss: 1.136 (epoch: 023)
+[ Mon Mar 11 22:16:15 2024 ] epoch: 024/200	data_type: train	batch: 00000/00001	bp loss: 1.58202	
+[ Mon Mar 11 22:16:31 2024 ] epoch: 024/200	data_type: train	batch: 00001/00001	bp loss: 1.53916	
+[ Mon Mar 11 22:16:31 2024 ] epoch: 024/200	data_type: train	bp loss: 1.2244
+[ Mon Mar 11 22:16:36 2024 ] epoch: 024/200	data_type: val  	batch: 51/52	bp loss: 0.1084	
+[ Mon Mar 11 22:16:36 2024 ] epoch: 024/200	data_type: val  		bp loss: 0.9002
+[ Mon Mar 11 22:16:38 2024 ] data_type: val  		best mean loss: 0.900 (epoch: 024)
+[ Mon Mar 11 22:16:39 2024 ] epoch: 025/200	data_type: train	batch: 00000/00001	bp loss: 0.28896	
+[ Mon Mar 11 22:16:55 2024 ] epoch: 025/200	data_type: train	batch: 00001/00001	bp loss: 0.36026	
+[ Mon Mar 11 22:16:55 2024 ] epoch: 025/200	data_type: train	bp loss: 0.8671
+[ Mon Mar 11 22:17:00 2024 ] epoch: 025/200	data_type: val  	batch: 51/52	bp loss: 0.1382	
+[ Mon Mar 11 22:17:00 2024 ] epoch: 025/200	data_type: val  		bp loss: 0.9618
+[ Mon Mar 11 22:17:02 2024 ] data_type: val  		best mean loss: 0.962 (epoch: 025)
+[ Mon Mar 11 22:17:03 2024 ] epoch: 026/200	data_type: train	batch: 00000/00001	bp loss: 0.78236	
+[ Mon Mar 11 22:17:19 2024 ] epoch: 026/200	data_type: train	batch: 00001/00001	bp loss: 1.32321	
+[ Mon Mar 11 22:17:20 2024 ] epoch: 026/200	data_type: train	bp loss: 0.9177
+[ Mon Mar 11 22:17:24 2024 ] epoch: 026/200	data_type: val  	batch: 51/52	bp loss: 0.2094	
+[ Mon Mar 11 22:17:24 2024 ] epoch: 026/200	data_type: val  		bp loss: 0.9261
+[ Mon Mar 11 22:17:26 2024 ] data_type: val  		best mean loss: 0.926 (epoch: 026)
+[ Mon Mar 11 22:17:28 2024 ] epoch: 027/200	data_type: train	batch: 00000/00001	bp loss: 0.24785	
+[ Mon Mar 11 22:17:43 2024 ] epoch: 027/200	data_type: train	batch: 00001/00001	bp loss: 1.27714	
+[ Mon Mar 11 22:17:44 2024 ] epoch: 027/200	data_type: train	bp loss: 1.0357
+[ Mon Mar 11 22:17:48 2024 ] epoch: 027/200	data_type: val  	batch: 51/52	bp loss: 0.3164	
+[ Mon Mar 11 22:17:48 2024 ] epoch: 027/200	data_type: val  		bp loss: 0.9270
+[ Mon Mar 11 22:17:50 2024 ] data_type: val  		best mean loss: 0.927 (epoch: 027)
+[ Mon Mar 11 22:17:51 2024 ] epoch: 028/200	data_type: train	batch: 00000/00001	bp loss: 2.02051	
+[ Mon Mar 11 22:18:07 2024 ] epoch: 028/200	data_type: train	batch: 00001/00001	bp loss: 0.25218	
+[ Mon Mar 11 22:18:07 2024 ] epoch: 028/200	data_type: train	bp loss: 1.0058
+[ Mon Mar 11 22:18:13 2024 ] epoch: 028/200	data_type: val  	batch: 51/52	bp loss: 0.2332	
+[ Mon Mar 11 22:18:13 2024 ] epoch: 028/200	data_type: val  		bp loss: 0.8455
+[ Mon Mar 11 22:18:16 2024 ] data_type: val  		best mean loss: 0.845 (epoch: 028)
+[ Mon Mar 11 22:18:17 2024 ] epoch: 029/200	data_type: train	batch: 00000/00001	bp loss: 1.47649	
+[ Mon Mar 11 22:18:32 2024 ] epoch: 029/200	data_type: train	batch: 00001/00001	bp loss: 1.96609	
+[ Mon Mar 11 22:18:33 2024 ] epoch: 029/200	data_type: train	bp loss: 0.9941
+[ Mon Mar 11 22:18:37 2024 ] epoch: 029/200	data_type: val  	batch: 51/52	bp loss: 0.0698	
+[ Mon Mar 11 22:18:37 2024 ] epoch: 029/200	data_type: val  		bp loss: 1.1178
+[ Mon Mar 11 22:18:39 2024 ] data_type: val  		best mean loss: 1.118 (epoch: 029)
+[ Mon Mar 11 22:18:40 2024 ] epoch: 030/200	data_type: train	batch: 00000/00001	bp loss: 0.89117	
+[ Mon Mar 11 22:18:56 2024 ] epoch: 030/200	data_type: train	batch: 00001/00001	bp loss: 0.35687	
+[ Mon Mar 11 22:18:56 2024 ] epoch: 030/200	data_type: train	bp loss: 0.9636
+[ Mon Mar 11 22:19:02 2024 ] epoch: 030/200	data_type: val  	batch: 51/52	bp loss: 0.3856	
+[ Mon Mar 11 22:19:02 2024 ] epoch: 030/200	data_type: val  		bp loss: 0.8341
+[ Mon Mar 11 22:19:05 2024 ] data_type: val  		best mean loss: 0.834 (epoch: 030)
+[ Mon Mar 11 22:19:06 2024 ] epoch: 031/200	data_type: train	batch: 00000/00001	bp loss: 0.51761	
+[ Mon Mar 11 22:19:22 2024 ] epoch: 031/200	data_type: train	batch: 00001/00001	bp loss: 1.04251	
+[ Mon Mar 11 22:19:22 2024 ] epoch: 031/200	data_type: train	bp loss: 0.9508
+[ Mon Mar 11 22:19:27 2024 ] epoch: 031/200	data_type: val  	batch: 51/52	bp loss: 0.3187	
+[ Mon Mar 11 22:19:27 2024 ] epoch: 031/200	data_type: val  		bp loss: 0.8253
+[ Mon Mar 11 22:19:30 2024 ] data_type: val  		best mean loss: 0.825 (epoch: 031)
+[ Mon Mar 11 22:19:31 2024 ] epoch: 032/200	data_type: train	batch: 00000/00001	bp loss: 0.57755	
+[ Mon Mar 11 22:19:47 2024 ] epoch: 032/200	data_type: train	batch: 00001/00001	bp loss: 0.08402	
+[ Mon Mar 11 22:19:47 2024 ] epoch: 032/200	data_type: train	bp loss: 0.8907
+[ Mon Mar 11 22:19:52 2024 ] epoch: 032/200	data_type: val  	batch: 51/52	bp loss: 0.4485	
+[ Mon Mar 11 22:19:52 2024 ] epoch: 032/200	data_type: val  		bp loss: 0.9662
+[ Mon Mar 11 22:19:53 2024 ] data_type: val  		best mean loss: 0.966 (epoch: 032)
+[ Mon Mar 11 22:19:55 2024 ] epoch: 033/200	data_type: train	batch: 00000/00001	bp loss: 0.59584	
+[ Mon Mar 11 22:20:08 2024 ] epoch: 033/200	data_type: train	batch: 00001/00001	bp loss: 0.18135	
+[ Mon Mar 11 22:20:08 2024 ] epoch: 033/200	data_type: train	bp loss: 0.9969
+[ Mon Mar 11 22:20:13 2024 ] epoch: 033/200	data_type: val  	batch: 51/52	bp loss: 0.4976	
+[ Mon Mar 11 22:20:13 2024 ] epoch: 033/200	data_type: val  		bp loss: 1.1444
+[ Mon Mar 11 22:20:15 2024 ] data_type: val  		best mean loss: 1.144 (epoch: 033)
+[ Mon Mar 11 22:20:17 2024 ] epoch: 034/200	data_type: train	batch: 00000/00001	bp loss: 0.48162	
+[ Mon Mar 11 22:20:32 2024 ] epoch: 034/200	data_type: train	batch: 00001/00001	bp loss: 0.88537	
+[ Mon Mar 11 22:20:32 2024 ] epoch: 034/200	data_type: train	bp loss: 1.0370
+[ Mon Mar 11 22:20:37 2024 ] epoch: 034/200	data_type: val  	batch: 51/52	bp loss: 0.2253	
+[ Mon Mar 11 22:20:37 2024 ] epoch: 034/200	data_type: val  		bp loss: 0.7349
+[ Mon Mar 11 22:20:39 2024 ] data_type: val  		best mean loss: 0.735 (epoch: 034)
+[ Mon Mar 11 22:20:40 2024 ] epoch: 035/200	data_type: train	batch: 00000/00001	bp loss: 1.01904	
+[ Mon Mar 11 22:20:56 2024 ] epoch: 035/200	data_type: train	batch: 00001/00001	bp loss: 0.91156	
+[ Mon Mar 11 22:20:56 2024 ] epoch: 035/200	data_type: train	bp loss: 0.9444
+[ Mon Mar 11 22:21:01 2024 ] epoch: 035/200	data_type: val  	batch: 51/52	bp loss: 0.4269	
+[ Mon Mar 11 22:21:01 2024 ] epoch: 035/200	data_type: val  		bp loss: 0.8941
+[ Mon Mar 11 22:21:03 2024 ] data_type: val  		best mean loss: 0.894 (epoch: 035)
+[ Mon Mar 11 22:21:05 2024 ] epoch: 036/200	data_type: train	batch: 00000/00001	bp loss: 0.89677	
+[ Mon Mar 11 22:21:20 2024 ] epoch: 036/200	data_type: train	batch: 00001/00001	bp loss: 1.12597	
+[ Mon Mar 11 22:21:20 2024 ] epoch: 036/200	data_type: train	bp loss: 0.8855
+[ Mon Mar 11 22:21:26 2024 ] epoch: 036/200	data_type: val  	batch: 51/52	bp loss: 0.3708	
+[ Mon Mar 11 22:21:26 2024 ] epoch: 036/200	data_type: val  		bp loss: 1.0528
+[ Mon Mar 11 22:21:28 2024 ] data_type: val  		best mean loss: 1.053 (epoch: 036)
+[ Mon Mar 11 22:21:30 2024 ] epoch: 037/200	data_type: train	batch: 00000/00001	bp loss: 0.60040	
+[ Mon Mar 11 22:21:45 2024 ] epoch: 037/200	data_type: train	batch: 00001/00001	bp loss: 1.92766	
+[ Mon Mar 11 22:21:45 2024 ] epoch: 037/200	data_type: train	bp loss: 1.0861
+[ Mon Mar 11 22:21:50 2024 ] epoch: 037/200	data_type: val  	batch: 51/52	bp loss: 0.3755	
+[ Mon Mar 11 22:21:50 2024 ] epoch: 037/200	data_type: val  		bp loss: 1.1694
+[ Mon Mar 11 22:21:53 2024 ] data_type: val  		best mean loss: 1.169 (epoch: 037)
+[ Mon Mar 11 22:21:54 2024 ] epoch: 038/200	data_type: train	batch: 00000/00001	bp loss: 1.47737	
+[ Mon Mar 11 22:22:10 2024 ] epoch: 038/200	data_type: train	batch: 00001/00001	bp loss: 0.20570	
+[ Mon Mar 11 22:22:10 2024 ] epoch: 038/200	data_type: train	bp loss: 1.0603
+[ Mon Mar 11 22:22:16 2024 ] epoch: 038/200	data_type: val  	batch: 51/52	bp loss: 0.2766	
+[ Mon Mar 11 22:22:16 2024 ] epoch: 038/200	data_type: val  		bp loss: 0.7454
+[ Mon Mar 11 22:22:18 2024 ] data_type: val  		best mean loss: 0.745 (epoch: 038)
+[ Mon Mar 11 22:22:19 2024 ] epoch: 039/200	data_type: train	batch: 00000/00001	bp loss: 1.42621	
+[ Mon Mar 11 22:22:35 2024 ] epoch: 039/200	data_type: train	batch: 00001/00001	bp loss: 0.45844	
+[ Mon Mar 11 22:22:35 2024 ] epoch: 039/200	data_type: train	bp loss: 0.8226
+[ Mon Mar 11 22:22:40 2024 ] epoch: 039/200	data_type: val  	batch: 51/52	bp loss: 0.1158	
+[ Mon Mar 11 22:22:40 2024 ] epoch: 039/200	data_type: val  		bp loss: 0.8368
+[ Mon Mar 11 22:22:42 2024 ] data_type: val  		best mean loss: 0.837 (epoch: 039)
+[ Mon Mar 11 22:22:43 2024 ] epoch: 040/200	data_type: train	batch: 00000/00001	bp loss: 0.10456	
+[ Mon Mar 11 22:22:59 2024 ] epoch: 040/200	data_type: train	batch: 00001/00001	bp loss: 1.62020	
+[ Mon Mar 11 22:22:59 2024 ] epoch: 040/200	data_type: train	bp loss: 0.8700
+[ Mon Mar 11 22:23:04 2024 ] epoch: 040/200	data_type: val  	batch: 51/52	bp loss: 0.1221	
+[ Mon Mar 11 22:23:04 2024 ] epoch: 040/200	data_type: val  		bp loss: 0.8031
+[ Mon Mar 11 22:23:06 2024 ] data_type: val  		best mean loss: 0.803 (epoch: 040)
+[ Mon Mar 11 22:23:07 2024 ] epoch: 041/200	data_type: train	batch: 00000/00001	bp loss: 0.87155	
+[ Mon Mar 11 22:23:23 2024 ] epoch: 041/200	data_type: train	batch: 00001/00001	bp loss: 0.34790	
+[ Mon Mar 11 22:23:24 2024 ] epoch: 041/200	data_type: train	bp loss: 0.7935
+[ Mon Mar 11 22:23:28 2024 ] epoch: 041/200	data_type: val  	batch: 51/52	bp loss: 0.5529	
+[ Mon Mar 11 22:23:28 2024 ] epoch: 041/200	data_type: val  		bp loss: 0.8960
+[ Mon Mar 11 22:23:30 2024 ] data_type: val  		best mean loss: 0.896 (epoch: 041)
+[ Mon Mar 11 22:23:32 2024 ] epoch: 042/200	data_type: train	batch: 00000/00001	bp loss: 0.61819	
+[ Mon Mar 11 22:23:48 2024 ] epoch: 042/200	data_type: train	batch: 00001/00001	bp loss: 0.75247	
+[ Mon Mar 11 22:23:48 2024 ] epoch: 042/200	data_type: train	bp loss: 0.8181
+[ Mon Mar 11 22:23:53 2024 ] epoch: 042/200	data_type: val  	batch: 51/52	bp loss: 0.1550	
+[ Mon Mar 11 22:23:53 2024 ] epoch: 042/200	data_type: val  		bp loss: 0.8719
+[ Mon Mar 11 22:23:55 2024 ] data_type: val  		best mean loss: 0.872 (epoch: 042)
+[ Mon Mar 11 22:23:57 2024 ] epoch: 043/200	data_type: train	batch: 00000/00001	bp loss: 1.23749	
+[ Mon Mar 11 22:24:13 2024 ] epoch: 043/200	data_type: train	batch: 00001/00001	bp loss: 0.14920	
+[ Mon Mar 11 22:24:13 2024 ] epoch: 043/200	data_type: train	bp loss: 0.8388
+[ Mon Mar 11 22:24:17 2024 ] epoch: 043/200	data_type: val  	batch: 51/52	bp loss: 0.3029	
+[ Mon Mar 11 22:24:17 2024 ] epoch: 043/200	data_type: val  		bp loss: 0.8379
+[ Mon Mar 11 22:24:19 2024 ] data_type: val  		best mean loss: 0.838 (epoch: 043)
+[ Mon Mar 11 22:24:21 2024 ] epoch: 044/200	data_type: train	batch: 00000/00001	bp loss: 0.31048	
+[ Mon Mar 11 22:24:37 2024 ] epoch: 044/200	data_type: train	batch: 00001/00001	bp loss: 0.93080	
+[ Mon Mar 11 22:24:37 2024 ] epoch: 044/200	data_type: train	bp loss: 0.8146
+[ Mon Mar 11 22:24:41 2024 ] epoch: 044/200	data_type: val  	batch: 51/52	bp loss: 0.5574	
+[ Mon Mar 11 22:24:41 2024 ] epoch: 044/200	data_type: val  		bp loss: 0.7471
+[ Mon Mar 11 22:24:43 2024 ] data_type: val  		best mean loss: 0.747 (epoch: 044)
+[ Mon Mar 11 22:24:45 2024 ] epoch: 045/200	data_type: train	batch: 00000/00001	bp loss: 0.79541	
+[ Mon Mar 11 22:25:00 2024 ] epoch: 045/200	data_type: train	batch: 00001/00001	bp loss: 0.07313	
+[ Mon Mar 11 22:25:01 2024 ] epoch: 045/200	data_type: train	bp loss: 0.7820
+[ Mon Mar 11 22:25:05 2024 ] epoch: 045/200	data_type: val  	batch: 51/52	bp loss: 0.2772	
+[ Mon Mar 11 22:25:05 2024 ] epoch: 045/200	data_type: val  		bp loss: 0.7658
+[ Mon Mar 11 22:25:07 2024 ] data_type: val  		best mean loss: 0.766 (epoch: 045)
+[ Mon Mar 11 22:25:09 2024 ] epoch: 046/200	data_type: train	batch: 00000/00001	bp loss: 0.12607	
+[ Mon Mar 11 22:25:24 2024 ] epoch: 046/200	data_type: train	batch: 00001/00001	bp loss: 0.57873	
+[ Mon Mar 11 22:25:24 2024 ] epoch: 046/200	data_type: train	bp loss: 0.8052
+[ Mon Mar 11 22:25:29 2024 ] epoch: 046/200	data_type: val  	batch: 51/52	bp loss: 0.1602	
+[ Mon Mar 11 22:25:29 2024 ] epoch: 046/200	data_type: val  		bp loss: 0.7556
+[ Mon Mar 11 22:25:31 2024 ] data_type: val  		best mean loss: 0.756 (epoch: 046)
+[ Mon Mar 11 22:25:33 2024 ] epoch: 047/200	data_type: train	batch: 00000/00001	bp loss: 1.02042	
+[ Mon Mar 11 22:25:48 2024 ] epoch: 047/200	data_type: train	batch: 00001/00001	bp loss: 0.73307	
+[ Mon Mar 11 22:25:49 2024 ] epoch: 047/200	data_type: train	bp loss: 0.7165
+[ Mon Mar 11 22:25:53 2024 ] epoch: 047/200	data_type: val  	batch: 51/52	bp loss: 0.0257	
+[ Mon Mar 11 22:25:53 2024 ] epoch: 047/200	data_type: val  		bp loss: 0.8260
+[ Mon Mar 11 22:25:56 2024 ] data_type: val  		best mean loss: 0.826 (epoch: 047)
+[ Mon Mar 11 22:25:57 2024 ] epoch: 048/200	data_type: train	batch: 00000/00001	bp loss: 0.01416	
+[ Mon Mar 11 22:26:13 2024 ] epoch: 048/200	data_type: train	batch: 00001/00001	bp loss: 1.19446	
+[ Mon Mar 11 22:26:13 2024 ] epoch: 048/200	data_type: train	bp loss: 0.8566
+[ Mon Mar 11 22:26:17 2024 ] epoch: 048/200	data_type: val  	batch: 51/52	bp loss: 0.2153	
+[ Mon Mar 11 22:26:17 2024 ] epoch: 048/200	data_type: val  		bp loss: 0.9182
+[ Mon Mar 11 22:26:19 2024 ] data_type: val  		best mean loss: 0.918 (epoch: 048)
+[ Mon Mar 11 22:26:21 2024 ] epoch: 049/200	data_type: train	batch: 00000/00001	bp loss: 0.17666	
+[ Mon Mar 11 22:26:36 2024 ] epoch: 049/200	data_type: train	batch: 00001/00001	bp loss: 1.87755	
+[ Mon Mar 11 22:26:37 2024 ] epoch: 049/200	data_type: train	bp loss: 0.9110
+[ Mon Mar 11 22:26:41 2024 ] epoch: 049/200	data_type: val  	batch: 51/52	bp loss: 0.3525	
+[ Mon Mar 11 22:26:41 2024 ] epoch: 049/200	data_type: val  		bp loss: 0.8838
+[ Mon Mar 11 22:26:43 2024 ] data_type: val  		best mean loss: 0.884 (epoch: 049)
+[ Mon Mar 11 22:26:44 2024 ] epoch: 050/200	data_type: train	batch: 00000/00001	bp loss: 0.01345	
+[ Mon Mar 11 22:27:00 2024 ] epoch: 050/200	data_type: train	batch: 00001/00001	bp loss: 0.27181	
+[ Mon Mar 11 22:27:00 2024 ] epoch: 050/200	data_type: train	bp loss: 0.8719
+[ Mon Mar 11 22:27:05 2024 ] epoch: 050/200	data_type: val  	batch: 51/52	bp loss: 0.2007	
+[ Mon Mar 11 22:27:05 2024 ] epoch: 050/200	data_type: val  		bp loss: 0.9226
+[ Mon Mar 11 22:27:07 2024 ] data_type: val  		best mean loss: 0.923 (epoch: 050)
+[ Mon Mar 11 22:27:08 2024 ] epoch: 051/200	data_type: train	batch: 00000/00001	bp loss: 0.52738	
+[ Mon Mar 11 22:27:24 2024 ] epoch: 051/200	data_type: train	batch: 00001/00001	bp loss: 0.86291	
+[ Mon Mar 11 22:27:24 2024 ] epoch: 051/200	data_type: train	bp loss: 0.8079
+[ Mon Mar 11 22:27:28 2024 ] epoch: 051/200	data_type: val  	batch: 51/52	bp loss: 0.1100	
+[ Mon Mar 11 22:27:28 2024 ] epoch: 051/200	data_type: val  		bp loss: 0.7072
+[ Mon Mar 11 22:27:30 2024 ] data_type: val  		best mean loss: 0.707 (epoch: 051)
+[ Mon Mar 11 22:27:32 2024 ] epoch: 052/200	data_type: train	batch: 00000/00001	bp loss: 0.67816	
+[ Mon Mar 11 22:27:47 2024 ] epoch: 052/200	data_type: train	batch: 00001/00001	bp loss: 0.53792	
+[ Mon Mar 11 22:27:47 2024 ] epoch: 052/200	data_type: train	bp loss: 0.7770
+[ Mon Mar 11 22:27:52 2024 ] epoch: 052/200	data_type: val  	batch: 51/52	bp loss: 0.1240	
+[ Mon Mar 11 22:27:52 2024 ] epoch: 052/200	data_type: val  		bp loss: 0.6418
+[ Mon Mar 11 22:27:54 2024 ] data_type: val  		best mean loss: 0.642 (epoch: 052)
+[ Mon Mar 11 22:27:56 2024 ] epoch: 053/200	data_type: train	batch: 00000/00001	bp loss: 1.79606	
+[ Mon Mar 11 22:28:11 2024 ] epoch: 053/200	data_type: train	batch: 00001/00001	bp loss: 0.97309	
+[ Mon Mar 11 22:28:11 2024 ] epoch: 053/200	data_type: train	bp loss: 0.7750
+[ Mon Mar 11 22:28:16 2024 ] epoch: 053/200	data_type: val  	batch: 51/52	bp loss: 0.3092	
+[ Mon Mar 11 22:28:16 2024 ] epoch: 053/200	data_type: val  		bp loss: 0.6502
+[ Mon Mar 11 22:28:18 2024 ] data_type: val  		best mean loss: 0.650 (epoch: 053)
+[ Mon Mar 11 22:28:19 2024 ] epoch: 054/200	data_type: train	batch: 00000/00001	bp loss: 0.90844	
+[ Mon Mar 11 22:28:33 2024 ] epoch: 054/200	data_type: train	batch: 00001/00001	bp loss: 0.11126	
+[ Mon Mar 11 22:28:33 2024 ] epoch: 054/200	data_type: train	bp loss: 0.7800
+[ Mon Mar 11 22:28:39 2024 ] epoch: 054/200	data_type: val  	batch: 51/52	bp loss: 0.1326	
+[ Mon Mar 11 22:28:39 2024 ] epoch: 054/200	data_type: val  		bp loss: 0.8156
+[ Mon Mar 11 22:28:41 2024 ] data_type: val  		best mean loss: 0.816 (epoch: 054)
+[ Mon Mar 11 22:28:43 2024 ] epoch: 055/200	data_type: train	batch: 00000/00001	bp loss: 0.47308	
+[ Mon Mar 11 22:28:58 2024 ] epoch: 055/200	data_type: train	batch: 00001/00001	bp loss: 0.90291	
+[ Mon Mar 11 22:28:58 2024 ] epoch: 055/200	data_type: train	bp loss: 0.7425
+[ Mon Mar 11 22:29:03 2024 ] epoch: 055/200	data_type: val  	batch: 51/52	bp loss: 0.0793	
+[ Mon Mar 11 22:29:03 2024 ] epoch: 055/200	data_type: val  		bp loss: 0.6774
+[ Mon Mar 11 22:29:05 2024 ] data_type: val  		best mean loss: 0.677 (epoch: 055)
+[ Mon Mar 11 22:29:06 2024 ] epoch: 056/200	data_type: train	batch: 00000/00001	bp loss: 0.38017	
+[ Mon Mar 11 22:29:22 2024 ] epoch: 056/200	data_type: train	batch: 00001/00001	bp loss: 1.04745	
+[ Mon Mar 11 22:29:22 2024 ] epoch: 056/200	data_type: train	bp loss: 0.7818
+[ Mon Mar 11 22:29:27 2024 ] epoch: 056/200	data_type: val  	batch: 51/52	bp loss: 0.1868	
+[ Mon Mar 11 22:29:27 2024 ] epoch: 056/200	data_type: val  		bp loss: 0.8716
+[ Mon Mar 11 22:29:29 2024 ] data_type: val  		best mean loss: 0.872 (epoch: 056)
+[ Mon Mar 11 22:29:30 2024 ] epoch: 057/200	data_type: train	batch: 00000/00001	bp loss: 0.96490	
+[ Mon Mar 11 22:29:46 2024 ] epoch: 057/200	data_type: train	batch: 00001/00001	bp loss: 1.35382	
+[ Mon Mar 11 22:29:46 2024 ] epoch: 057/200	data_type: train	bp loss: 0.7969
+[ Mon Mar 11 22:29:51 2024 ] epoch: 057/200	data_type: val  	batch: 51/52	bp loss: 0.6324	
+[ Mon Mar 11 22:29:51 2024 ] epoch: 057/200	data_type: val  		bp loss: 0.8182
+[ Mon Mar 11 22:29:53 2024 ] data_type: val  		best mean loss: 0.818 (epoch: 057)
+[ Mon Mar 11 22:29:55 2024 ] epoch: 058/200	data_type: train	batch: 00000/00001	bp loss: 0.36733	
+[ Mon Mar 11 22:30:10 2024 ] epoch: 058/200	data_type: train	batch: 00001/00001	bp loss: 0.20225	
+[ Mon Mar 11 22:30:10 2024 ] epoch: 058/200	data_type: train	bp loss: 0.7657
+[ Mon Mar 11 22:30:15 2024 ] epoch: 058/200	data_type: val  	batch: 51/52	bp loss: 0.0723	
+[ Mon Mar 11 22:30:15 2024 ] epoch: 058/200	data_type: val  		bp loss: 0.6319
+[ Mon Mar 11 22:30:18 2024 ] data_type: val  		best mean loss: 0.632 (epoch: 058)
+[ Mon Mar 11 22:30:19 2024 ] epoch: 059/200	data_type: train	batch: 00000/00001	bp loss: 0.49982	
+[ Mon Mar 11 22:30:35 2024 ] epoch: 059/200	data_type: train	batch: 00001/00001	bp loss: 0.07437	
+[ Mon Mar 11 22:30:35 2024 ] epoch: 059/200	data_type: train	bp loss: 0.7141
+[ Mon Mar 11 22:30:40 2024 ] epoch: 059/200	data_type: val  	batch: 51/52	bp loss: 0.1281	
+[ Mon Mar 11 22:30:40 2024 ] epoch: 059/200	data_type: val  		bp loss: 0.6071
+[ Mon Mar 11 22:30:42 2024 ] data_type: val  		best mean loss: 0.607 (epoch: 059)
+[ Mon Mar 11 22:30:43 2024 ] epoch: 060/200	data_type: train	batch: 00000/00001	bp loss: 0.69443	
+[ Mon Mar 11 22:30:58 2024 ] epoch: 060/200	data_type: train	batch: 00001/00001	bp loss: 0.56775	
+[ Mon Mar 11 22:30:59 2024 ] epoch: 060/200	data_type: train	bp loss: 0.7483
+[ Mon Mar 11 22:31:03 2024 ] epoch: 060/200	data_type: val  	batch: 51/52	bp loss: 0.2889	
+[ Mon Mar 11 22:31:03 2024 ] epoch: 060/200	data_type: val  		bp loss: 0.6946
+[ Mon Mar 11 22:31:06 2024 ] data_type: val  		best mean loss: 0.695 (epoch: 060)
+[ Mon Mar 11 22:31:07 2024 ] epoch: 061/200	data_type: train	batch: 00000/00001	bp loss: 0.24544	
+[ Mon Mar 11 22:31:22 2024 ] epoch: 061/200	data_type: train	batch: 00001/00001	bp loss: 0.11624	
+[ Mon Mar 11 22:31:22 2024 ] epoch: 061/200	data_type: train	bp loss: 0.8629
+[ Mon Mar 11 22:31:27 2024 ] epoch: 061/200	data_type: val  	batch: 51/52	bp loss: 0.0424	
+[ Mon Mar 11 22:31:27 2024 ] epoch: 061/200	data_type: val  		bp loss: 0.7828
+[ Mon Mar 11 22:31:30 2024 ] data_type: val  		best mean loss: 0.783 (epoch: 061)
+[ Mon Mar 11 22:31:31 2024 ] epoch: 062/200	data_type: train	batch: 00000/00001	bp loss: 0.55787	
+[ Mon Mar 11 22:31:46 2024 ] epoch: 062/200	data_type: train	batch: 00001/00001	bp loss: 0.72352	
+[ Mon Mar 11 22:31:46 2024 ] epoch: 062/200	data_type: train	bp loss: 0.7534
+[ Mon Mar 11 22:31:51 2024 ] epoch: 062/200	data_type: val  	batch: 51/52	bp loss: 0.3438	
+[ Mon Mar 11 22:31:51 2024 ] epoch: 062/200	data_type: val  		bp loss: 0.6572
+[ Mon Mar 11 22:31:53 2024 ] data_type: val  		best mean loss: 0.657 (epoch: 062)
+[ Mon Mar 11 22:31:55 2024 ] epoch: 063/200	data_type: train	batch: 00000/00001	bp loss: 1.49624	
+[ Mon Mar 11 22:32:10 2024 ] epoch: 063/200	data_type: train	batch: 00001/00001	bp loss: 0.38493	
+[ Mon Mar 11 22:32:10 2024 ] epoch: 063/200	data_type: train	bp loss: 0.7976
+[ Mon Mar 11 22:32:17 2024 ] epoch: 063/200	data_type: val  	batch: 51/52	bp loss: 0.5186	
+[ Mon Mar 11 22:32:17 2024 ] epoch: 063/200	data_type: val  		bp loss: 0.7604
+[ Mon Mar 11 22:32:20 2024 ] data_type: val  		best mean loss: 0.760 (epoch: 063)
+[ Mon Mar 11 22:32:22 2024 ] epoch: 064/200	data_type: train	batch: 00000/00001	bp loss: 0.27572	
+[ Mon Mar 11 22:32:37 2024 ] epoch: 064/200	data_type: train	batch: 00001/00001	bp loss: 0.39641	
+[ Mon Mar 11 22:32:38 2024 ] epoch: 064/200	data_type: train	bp loss: 0.7248
+[ Mon Mar 11 22:32:43 2024 ] epoch: 064/200	data_type: val  	batch: 51/52	bp loss: 0.1186	
+[ Mon Mar 11 22:32:43 2024 ] epoch: 064/200	data_type: val  		bp loss: 0.7254
+[ Mon Mar 11 22:32:45 2024 ] data_type: val  		best mean loss: 0.725 (epoch: 064)
+[ Mon Mar 11 22:32:47 2024 ] epoch: 065/200	data_type: train	batch: 00000/00001	bp loss: 0.56154	
+[ Mon Mar 11 22:33:02 2024 ] epoch: 065/200	data_type: train	batch: 00001/00001	bp loss: 0.14824	
+[ Mon Mar 11 22:33:03 2024 ] epoch: 065/200	data_type: train	bp loss: 0.7431
+[ Mon Mar 11 22:33:08 2024 ] epoch: 065/200	data_type: val  	batch: 51/52	bp loss: 0.6641	
+[ Mon Mar 11 22:33:08 2024 ] epoch: 065/200	data_type: val  		bp loss: 0.5189
+[ Mon Mar 11 22:33:10 2024 ] data_type: val  		best mean loss: 0.519 (epoch: 065)
+[ Mon Mar 11 22:33:12 2024 ] epoch: 066/200	data_type: train	batch: 00000/00001	bp loss: 1.49025	
+[ Mon Mar 11 22:33:27 2024 ] epoch: 066/200	data_type: train	batch: 00001/00001	bp loss: 0.52828	
+[ Mon Mar 11 22:33:27 2024 ] epoch: 066/200	data_type: train	bp loss: 0.7365
+[ Mon Mar 11 22:33:32 2024 ] epoch: 066/200	data_type: val  	batch: 51/52	bp loss: 0.1413	
+[ Mon Mar 11 22:33:32 2024 ] epoch: 066/200	data_type: val  		bp loss: 0.7934
+[ Mon Mar 11 22:33:35 2024 ] data_type: val  		best mean loss: 0.793 (epoch: 066)
+[ Mon Mar 11 22:33:36 2024 ] epoch: 067/200	data_type: train	batch: 00000/00001	bp loss: 1.21704	
+[ Mon Mar 11 22:33:51 2024 ] epoch: 067/200	data_type: train	batch: 00001/00001	bp loss: 0.53535	
+[ Mon Mar 11 22:33:52 2024 ] epoch: 067/200	data_type: train	bp loss: 0.8324
+[ Mon Mar 11 22:33:57 2024 ] epoch: 067/200	data_type: val  	batch: 51/52	bp loss: 0.0974	
+[ Mon Mar 11 22:33:57 2024 ] epoch: 067/200	data_type: val  		bp loss: 0.6968
+[ Mon Mar 11 22:33:59 2024 ] data_type: val  		best mean loss: 0.697 (epoch: 067)
+[ Mon Mar 11 22:34:00 2024 ] epoch: 068/200	data_type: train	batch: 00000/00001	bp loss: 0.33478	
+[ Mon Mar 11 22:34:16 2024 ] epoch: 068/200	data_type: train	batch: 00001/00001	bp loss: 0.49902	
+[ Mon Mar 11 22:34:16 2024 ] epoch: 068/200	data_type: train	bp loss: 0.7578
+[ Mon Mar 11 22:34:22 2024 ] epoch: 068/200	data_type: val  	batch: 51/52	bp loss: 0.5592	
+[ Mon Mar 11 22:34:22 2024 ] epoch: 068/200	data_type: val  		bp loss: 0.8061
+[ Mon Mar 11 22:34:24 2024 ] data_type: val  		best mean loss: 0.806 (epoch: 068)
+[ Mon Mar 11 22:34:26 2024 ] epoch: 069/200	data_type: train	batch: 00000/00001	bp loss: 0.47196	
+[ Mon Mar 11 22:34:41 2024 ] epoch: 069/200	data_type: train	batch: 00001/00001	bp loss: 0.97261	
+[ Mon Mar 11 22:34:41 2024 ] epoch: 069/200	data_type: train	bp loss: 0.7381
+[ Mon Mar 11 22:34:46 2024 ] epoch: 069/200	data_type: val  	batch: 51/52	bp loss: 0.1961	
+[ Mon Mar 11 22:34:46 2024 ] epoch: 069/200	data_type: val  		bp loss: 0.7982
+[ Mon Mar 11 22:34:48 2024 ] data_type: val  		best mean loss: 0.798 (epoch: 069)
+[ Mon Mar 11 22:34:49 2024 ] epoch: 070/200	data_type: train	batch: 00000/00001	bp loss: 0.20660	
+[ Mon Mar 11 22:35:04 2024 ] epoch: 070/200	data_type: train	batch: 00001/00001	bp loss: 0.97336	
+[ Mon Mar 11 22:35:05 2024 ] epoch: 070/200	data_type: train	bp loss: 0.7971
+[ Mon Mar 11 22:35:09 2024 ] epoch: 070/200	data_type: val  	batch: 51/52	bp loss: 0.0185	
+[ Mon Mar 11 22:35:09 2024 ] epoch: 070/200	data_type: val  		bp loss: 0.5711
+[ Mon Mar 11 22:35:11 2024 ] data_type: val  		best mean loss: 0.571 (epoch: 070)
+[ Mon Mar 11 22:35:13 2024 ] epoch: 071/200	data_type: train	batch: 00000/00001	bp loss: 1.64476	
+[ Mon Mar 11 22:35:27 2024 ] epoch: 071/200	data_type: train	batch: 00001/00001	bp loss: 2.26097	
+[ Mon Mar 11 22:35:28 2024 ] epoch: 071/200	data_type: train	bp loss: 0.7697
+[ Mon Mar 11 22:35:33 2024 ] epoch: 071/200	data_type: val  	batch: 51/52	bp loss: 0.1004	
+[ Mon Mar 11 22:35:33 2024 ] epoch: 071/200	data_type: val  		bp loss: 0.8311
+[ Mon Mar 11 22:35:35 2024 ] data_type: val  		best mean loss: 0.831 (epoch: 071)
+[ Mon Mar 11 22:35:36 2024 ] epoch: 072/200	data_type: train	batch: 00000/00001	bp loss: 0.59434	
+[ Mon Mar 11 22:35:51 2024 ] epoch: 072/200	data_type: train	batch: 00001/00001	bp loss: 3.01338	
+[ Mon Mar 11 22:35:51 2024 ] epoch: 072/200	data_type: train	bp loss: 0.7766
+[ Mon Mar 11 22:35:56 2024 ] epoch: 072/200	data_type: val  	batch: 51/52	bp loss: 0.3098	
+[ Mon Mar 11 22:35:56 2024 ] epoch: 072/200	data_type: val  		bp loss: 0.6801
+[ Mon Mar 11 22:35:58 2024 ] data_type: val  		best mean loss: 0.680 (epoch: 072)
+[ Mon Mar 11 22:36:00 2024 ] epoch: 073/200	data_type: train	batch: 00000/00001	bp loss: 1.18034	
+[ Mon Mar 11 22:36:15 2024 ] epoch: 073/200	data_type: train	batch: 00001/00001	bp loss: 1.10056	
+[ Mon Mar 11 22:36:15 2024 ] epoch: 073/200	data_type: train	bp loss: 0.7608
+[ Mon Mar 11 22:36:20 2024 ] epoch: 073/200	data_type: val  	batch: 51/52	bp loss: 0.0614	
+[ Mon Mar 11 22:36:20 2024 ] epoch: 073/200	data_type: val  		bp loss: 0.7142
+[ Mon Mar 11 22:36:22 2024 ] data_type: val  		best mean loss: 0.714 (epoch: 073)
+[ Mon Mar 11 22:36:23 2024 ] epoch: 074/200	data_type: train	batch: 00000/00001	bp loss: 0.79074	
+[ Mon Mar 11 22:36:38 2024 ] epoch: 074/200	data_type: train	batch: 00001/00001	bp loss: 0.06839	
+[ Mon Mar 11 22:36:38 2024 ] epoch: 074/200	data_type: train	bp loss: 0.7728
+[ Mon Mar 11 22:36:43 2024 ] epoch: 074/200	data_type: val  	batch: 51/52	bp loss: 0.0835	
+[ Mon Mar 11 22:36:43 2024 ] epoch: 074/200	data_type: val  		bp loss: 0.6886
+[ Mon Mar 11 22:36:45 2024 ] data_type: val  		best mean loss: 0.689 (epoch: 074)
+[ Mon Mar 11 22:36:46 2024 ] epoch: 075/200	data_type: train	batch: 00000/00001	bp loss: 0.29090	
+[ Mon Mar 11 22:37:02 2024 ] epoch: 075/200	data_type: train	batch: 00001/00001	bp loss: 0.16748	
+[ Mon Mar 11 22:37:02 2024 ] epoch: 075/200	data_type: train	bp loss: 0.7253
+[ Mon Mar 11 22:37:07 2024 ] epoch: 075/200	data_type: val  	batch: 51/52	bp loss: 0.3714	
+[ Mon Mar 11 22:37:07 2024 ] epoch: 075/200	data_type: val  		bp loss: 0.6656
+[ Mon Mar 11 22:37:09 2024 ] data_type: val  		best mean loss: 0.666 (epoch: 075)
+[ Mon Mar 11 22:37:10 2024 ] epoch: 076/200	data_type: train	batch: 00000/00001	bp loss: 2.04445	
+[ Mon Mar 11 22:37:26 2024 ] epoch: 076/200	data_type: train	batch: 00001/00001	bp loss: 0.55272	
+[ Mon Mar 11 22:37:26 2024 ] epoch: 076/200	data_type: train	bp loss: 0.7916
+[ Mon Mar 11 22:37:31 2024 ] epoch: 076/200	data_type: val  	batch: 51/52	bp loss: 0.2545	
+[ Mon Mar 11 22:37:31 2024 ] epoch: 076/200	data_type: val  		bp loss: 0.7537
+[ Mon Mar 11 22:37:33 2024 ] data_type: val  		best mean loss: 0.754 (epoch: 076)
+[ Mon Mar 11 22:37:35 2024 ] epoch: 077/200	data_type: train	batch: 00000/00001	bp loss: 0.47069	
+[ Mon Mar 11 22:37:48 2024 ] epoch: 077/200	data_type: train	batch: 00001/00001	bp loss: 1.12401	
+[ Mon Mar 11 22:37:48 2024 ] epoch: 077/200	data_type: train	bp loss: 0.7647
+[ Mon Mar 11 22:37:55 2024 ] epoch: 077/200	data_type: val  	batch: 51/52	bp loss: 0.5065	
+[ Mon Mar 11 22:37:55 2024 ] epoch: 077/200	data_type: val  		bp loss: 0.7652
+[ Mon Mar 11 22:37:57 2024 ] data_type: val  		best mean loss: 0.765 (epoch: 077)
+[ Mon Mar 11 22:37:59 2024 ] epoch: 078/200	data_type: train	batch: 00000/00001	bp loss: 0.39576	
+[ Mon Mar 11 22:38:13 2024 ] epoch: 078/200	data_type: train	batch: 00001/00001	bp loss: 0.67023	
+[ Mon Mar 11 22:38:13 2024 ] epoch: 078/200	data_type: train	bp loss: 0.7678
+[ Mon Mar 11 22:38:19 2024 ] epoch: 078/200	data_type: val  	batch: 51/52	bp loss: 0.0392	
+[ Mon Mar 11 22:38:19 2024 ] epoch: 078/200	data_type: val  		bp loss: 0.7397
+[ Mon Mar 11 22:38:21 2024 ] data_type: val  		best mean loss: 0.740 (epoch: 078)
+[ Mon Mar 11 22:38:23 2024 ] epoch: 079/200	data_type: train	batch: 00000/00001	bp loss: 0.19683	
+[ Mon Mar 11 22:38:37 2024 ] epoch: 079/200	data_type: train	batch: 00001/00001	bp loss: 0.12793	
+[ Mon Mar 11 22:38:37 2024 ] epoch: 079/200	data_type: train	bp loss: 0.7337
+[ Mon Mar 11 22:38:42 2024 ] epoch: 079/200	data_type: val  	batch: 51/52	bp loss: 0.1236	
+[ Mon Mar 11 22:38:42 2024 ] epoch: 079/200	data_type: val  		bp loss: 0.9459
+[ Mon Mar 11 22:38:44 2024 ] data_type: val  		best mean loss: 0.946 (epoch: 079)
+[ Mon Mar 11 22:38:46 2024 ] epoch: 080/200	data_type: train	batch: 00000/00001	bp loss: 1.28906	
+[ Mon Mar 11 22:39:00 2024 ] epoch: 080/200	data_type: train	batch: 00001/00001	bp loss: 0.52596	
+[ Mon Mar 11 22:39:00 2024 ] epoch: 080/200	data_type: train	bp loss: 0.7348
+[ Mon Mar 11 22:39:05 2024 ] epoch: 080/200	data_type: val  	batch: 51/52	bp loss: 0.4551	
+[ Mon Mar 11 22:39:05 2024 ] epoch: 080/200	data_type: val  		bp loss: 0.6635
+[ Mon Mar 11 22:39:07 2024 ] data_type: val  		best mean loss: 0.664 (epoch: 080)
+[ Mon Mar 11 22:39:09 2024 ] epoch: 081/200	data_type: train	batch: 00000/00001	bp loss: 1.05453	
+[ Mon Mar 11 22:39:23 2024 ] epoch: 081/200	data_type: train	batch: 00001/00001	bp loss: 0.62644	
+[ Mon Mar 11 22:39:24 2024 ] epoch: 081/200	data_type: train	bp loss: 0.7598
+[ Mon Mar 11 22:39:28 2024 ] epoch: 081/200	data_type: val  	batch: 51/52	bp loss: 0.0012	
+[ Mon Mar 11 22:39:28 2024 ] epoch: 081/200	data_type: val  		bp loss: 0.7676
+[ Mon Mar 11 22:39:31 2024 ] data_type: val  		best mean loss: 0.768 (epoch: 081)
+[ Mon Mar 11 22:39:32 2024 ] epoch: 082/200	data_type: train	batch: 00000/00001	bp loss: 0.75711	
+[ Mon Mar 11 22:39:47 2024 ] epoch: 082/200	data_type: train	batch: 00001/00001	bp loss: 0.06372	
+[ Mon Mar 11 22:39:47 2024 ] epoch: 082/200	data_type: train	bp loss: 0.7883
+[ Mon Mar 11 22:39:53 2024 ] epoch: 082/200	data_type: val  	batch: 51/52	bp loss: 0.4633	
+[ Mon Mar 11 22:39:53 2024 ] epoch: 082/200	data_type: val  		bp loss: 0.8074
+[ Mon Mar 11 22:39:55 2024 ] data_type: val  		best mean loss: 0.807 (epoch: 082)
+[ Mon Mar 11 22:39:56 2024 ] epoch: 083/200	data_type: train	batch: 00000/00001	bp loss: 0.11549	
+[ Mon Mar 11 22:40:11 2024 ] epoch: 083/200	data_type: train	batch: 00001/00001	bp loss: 0.07103	
+[ Mon Mar 11 22:40:11 2024 ] epoch: 083/200	data_type: train	bp loss: 0.7647
+[ Mon Mar 11 22:40:16 2024 ] epoch: 083/200	data_type: val  	batch: 51/52	bp loss: 0.0828	
+[ Mon Mar 11 22:40:16 2024 ] epoch: 083/200	data_type: val  		bp loss: 0.7548
+[ Mon Mar 11 22:40:18 2024 ] data_type: val  		best mean loss: 0.755 (epoch: 083)
+[ Mon Mar 11 22:40:20 2024 ] epoch: 084/200	data_type: train	batch: 00000/00001	bp loss: 0.35883	
+[ Mon Mar 11 22:40:34 2024 ] epoch: 084/200	data_type: train	batch: 00001/00001	bp loss: 0.68311	
+[ Mon Mar 11 22:40:35 2024 ] epoch: 084/200	data_type: train	bp loss: 0.7368
+[ Mon Mar 11 22:40:40 2024 ] epoch: 084/200	data_type: val  	batch: 51/52	bp loss: 0.0923	
+[ Mon Mar 11 22:40:40 2024 ] epoch: 084/200	data_type: val  		bp loss: 0.7955
+[ Mon Mar 11 22:40:42 2024 ] data_type: val  		best mean loss: 0.795 (epoch: 084)
+[ Mon Mar 11 22:40:43 2024 ] epoch: 085/200	data_type: train	batch: 00000/00001	bp loss: 1.62705	
+[ Mon Mar 11 22:40:58 2024 ] epoch: 085/200	data_type: train	batch: 00001/00001	bp loss: 0.72051	
+[ Mon Mar 11 22:40:59 2024 ] epoch: 085/200	data_type: train	bp loss: 0.6901
+[ Mon Mar 11 22:41:04 2024 ] epoch: 085/200	data_type: val  	batch: 51/52	bp loss: 0.6844	
+[ Mon Mar 11 22:41:04 2024 ] epoch: 085/200	data_type: val  		bp loss: 0.6724
+[ Mon Mar 11 22:41:06 2024 ] data_type: val  		best mean loss: 0.672 (epoch: 085)
+[ Mon Mar 11 22:41:08 2024 ] epoch: 086/200	data_type: train	batch: 00000/00001	bp loss: 0.40914	
+[ Mon Mar 11 22:41:23 2024 ] epoch: 086/200	data_type: train	batch: 00001/00001	bp loss: 0.93157	
+[ Mon Mar 11 22:41:23 2024 ] epoch: 086/200	data_type: train	bp loss: 0.7999
+[ Mon Mar 11 22:41:28 2024 ] epoch: 086/200	data_type: val  	batch: 51/52	bp loss: 0.5925	
+[ Mon Mar 11 22:41:28 2024 ] epoch: 086/200	data_type: val  		bp loss: 0.7872
+[ Mon Mar 11 22:41:30 2024 ] data_type: val  		best mean loss: 0.787 (epoch: 086)
+[ Mon Mar 11 22:41:32 2024 ] epoch: 087/200	data_type: train	batch: 00000/00001	bp loss: 0.58211	
+[ Mon Mar 11 22:41:43 2024 ] epoch: 087/200	data_type: train	batch: 00001/00001	bp loss: 0.03476	
+[ Mon Mar 11 22:41:43 2024 ] epoch: 087/200	data_type: train	bp loss: 0.7723
+[ Mon Mar 11 22:41:49 2024 ] epoch: 087/200	data_type: val  	batch: 51/52	bp loss: 0.2932	
+[ Mon Mar 11 22:41:49 2024 ] epoch: 087/200	data_type: val  		bp loss: 0.8452
+[ Mon Mar 11 22:41:51 2024 ] data_type: val  		best mean loss: 0.845 (epoch: 087)
+[ Mon Mar 11 22:41:53 2024 ] epoch: 088/200	data_type: train	batch: 00000/00001	bp loss: 0.06339	
+[ Mon Mar 11 22:42:04 2024 ] epoch: 088/200	data_type: train	batch: 00001/00001	bp loss: 0.53415	
+[ Mon Mar 11 22:42:04 2024 ] epoch: 088/200	data_type: train	bp loss: 0.7753
+[ Mon Mar 11 22:42:10 2024 ] epoch: 088/200	data_type: val  	batch: 51/52	bp loss: 0.1613	
+[ Mon Mar 11 22:42:10 2024 ] epoch: 088/200	data_type: val  		bp loss: 0.6993
+[ Mon Mar 11 22:42:12 2024 ] data_type: val  		best mean loss: 0.699 (epoch: 088)
+[ Mon Mar 11 22:42:14 2024 ] epoch: 089/200	data_type: train	batch: 00000/00001	bp loss: 1.26926	
+[ Mon Mar 11 22:42:26 2024 ] epoch: 089/200	data_type: train	batch: 00001/00001	bp loss: 0.55081	
+[ Mon Mar 11 22:42:26 2024 ] epoch: 089/200	data_type: train	bp loss: 0.7473
+[ Mon Mar 11 22:42:31 2024 ] epoch: 089/200	data_type: val  	batch: 51/52	bp loss: 0.0170	
+[ Mon Mar 11 22:42:31 2024 ] epoch: 089/200	data_type: val  		bp loss: 0.6386
+[ Mon Mar 11 22:42:34 2024 ] data_type: val  		best mean loss: 0.639 (epoch: 089)
+[ Mon Mar 11 22:42:35 2024 ] epoch: 090/200	data_type: train	batch: 00000/00001	bp loss: 1.08348	
+[ Mon Mar 11 22:42:47 2024 ] epoch: 090/200	data_type: train	batch: 00001/00001	bp loss: 0.00647	
+[ Mon Mar 11 22:42:47 2024 ] epoch: 090/200	data_type: train	bp loss: 0.7613
+[ Mon Mar 11 22:42:53 2024 ] epoch: 090/200	data_type: val  	batch: 51/52	bp loss: 0.1352	
+[ Mon Mar 11 22:42:53 2024 ] epoch: 090/200	data_type: val  		bp loss: 0.7368
+[ Mon Mar 11 22:42:56 2024 ] data_type: val  		best mean loss: 0.737 (epoch: 090)
+[ Mon Mar 11 22:42:57 2024 ] epoch: 091/200	data_type: train	batch: 00000/00001	bp loss: 0.28399	
+[ Mon Mar 11 22:43:09 2024 ] epoch: 091/200	data_type: train	batch: 00001/00001	bp loss: 0.75436	
+[ Mon Mar 11 22:43:09 2024 ] epoch: 091/200	data_type: train	bp loss: 0.7091
+[ Mon Mar 11 22:43:14 2024 ] epoch: 091/200	data_type: val  	batch: 51/52	bp loss: 0.6018	
+[ Mon Mar 11 22:43:14 2024 ] epoch: 091/200	data_type: val  		bp loss: 0.7502
+[ Mon Mar 11 22:43:17 2024 ] data_type: val  		best mean loss: 0.750 (epoch: 091)
+[ Mon Mar 11 22:43:18 2024 ] epoch: 092/200	data_type: train	batch: 00000/00001	bp loss: 0.73468	
+[ Mon Mar 11 22:43:29 2024 ] epoch: 092/200	data_type: train	batch: 00001/00001	bp loss: 0.02596	
+[ Mon Mar 11 22:43:30 2024 ] epoch: 092/200	data_type: train	bp loss: 0.7650
+[ Mon Mar 11 22:43:35 2024 ] epoch: 092/200	data_type: val  	batch: 51/52	bp loss: 0.1683	
+[ Mon Mar 11 22:43:35 2024 ] epoch: 092/200	data_type: val  		bp loss: 0.6418
+[ Mon Mar 11 22:43:38 2024 ] data_type: val  		best mean loss: 0.642 (epoch: 092)
+[ Mon Mar 11 22:43:39 2024 ] epoch: 093/200	data_type: train	batch: 00000/00001	bp loss: 2.32217	
+[ Mon Mar 11 22:43:51 2024 ] epoch: 093/200	data_type: train	batch: 00001/00001	bp loss: 0.23074	
+[ Mon Mar 11 22:43:51 2024 ] epoch: 093/200	data_type: train	bp loss: 0.7779
+[ Mon Mar 11 22:43:56 2024 ] epoch: 093/200	data_type: val  	batch: 51/52	bp loss: 0.0945	
+[ Mon Mar 11 22:43:56 2024 ] epoch: 093/200	data_type: val  		bp loss: 0.6916
+[ Mon Mar 11 22:43:59 2024 ] data_type: val  		best mean loss: 0.692 (epoch: 093)
+[ Mon Mar 11 22:44:00 2024 ] epoch: 094/200	data_type: train	batch: 00000/00001	bp loss: 0.84547	
+[ Mon Mar 11 22:44:12 2024 ] epoch: 094/200	data_type: train	batch: 00001/00001	bp loss: 1.77069	
+[ Mon Mar 11 22:44:12 2024 ] epoch: 094/200	data_type: train	bp loss: 0.7983
+[ Mon Mar 11 22:44:18 2024 ] epoch: 094/200	data_type: val  	batch: 51/52	bp loss: 0.3111	
+[ Mon Mar 11 22:44:18 2024 ] epoch: 094/200	data_type: val  		bp loss: 0.8102
+[ Mon Mar 11 22:44:20 2024 ] data_type: val  		best mean loss: 0.810 (epoch: 094)
+[ Mon Mar 11 22:44:22 2024 ] epoch: 095/200	data_type: train	batch: 00000/00001	bp loss: 0.33763	
+[ Mon Mar 11 22:44:33 2024 ] epoch: 095/200	data_type: train	batch: 00001/00001	bp loss: 0.41639	
+[ Mon Mar 11 22:44:34 2024 ] epoch: 095/200	data_type: train	bp loss: 0.7516
+[ Mon Mar 11 22:44:39 2024 ] epoch: 095/200	data_type: val  	batch: 51/52	bp loss: 0.3747	
+[ Mon Mar 11 22:44:39 2024 ] epoch: 095/200	data_type: val  		bp loss: 0.6753
+[ Mon Mar 11 22:44:42 2024 ] data_type: val  		best mean loss: 0.675 (epoch: 095)
+[ Mon Mar 11 22:44:43 2024 ] epoch: 096/200	data_type: train	batch: 00000/00001	bp loss: 0.58417	
+[ Mon Mar 11 22:44:55 2024 ] epoch: 096/200	data_type: train	batch: 00001/00001	bp loss: 0.24174	
+[ Mon Mar 11 22:44:55 2024 ] epoch: 096/200	data_type: train	bp loss: 0.7674
+[ Mon Mar 11 22:45:01 2024 ] epoch: 096/200	data_type: val  	batch: 51/52	bp loss: 0.2320	
+[ Mon Mar 11 22:45:01 2024 ] epoch: 096/200	data_type: val  		bp loss: 0.7978
+[ Mon Mar 11 22:45:03 2024 ] data_type: val  		best mean loss: 0.798 (epoch: 096)
+[ Mon Mar 11 22:45:05 2024 ] epoch: 097/200	data_type: train	batch: 00000/00001	bp loss: 0.49420	
+[ Mon Mar 11 22:45:16 2024 ] epoch: 097/200	data_type: train	batch: 00001/00001	bp loss: 0.67041	
+[ Mon Mar 11 22:45:17 2024 ] epoch: 097/200	data_type: train	bp loss: 0.7633
+[ Mon Mar 11 22:45:23 2024 ] epoch: 097/200	data_type: val  	batch: 51/52	bp loss: 0.1014	
+[ Mon Mar 11 22:45:23 2024 ] epoch: 097/200	data_type: val  		bp loss: 0.7823
+[ Mon Mar 11 22:45:25 2024 ] data_type: val  		best mean loss: 0.782 (epoch: 097)
+[ Mon Mar 11 22:45:27 2024 ] epoch: 098/200	data_type: train	batch: 00000/00001	bp loss: 1.33302	
+[ Mon Mar 11 22:45:38 2024 ] epoch: 098/200	data_type: train	batch: 00001/00001	bp loss: 0.11507	
+[ Mon Mar 11 22:45:39 2024 ] epoch: 098/200	data_type: train	bp loss: 0.7613
+[ Mon Mar 11 22:45:44 2024 ] epoch: 098/200	data_type: val  	batch: 51/52	bp loss: 0.1440	
+[ Mon Mar 11 22:45:44 2024 ] epoch: 098/200	data_type: val  		bp loss: 0.7280
+[ Mon Mar 11 22:45:46 2024 ] data_type: val  		best mean loss: 0.728 (epoch: 098)
+[ Mon Mar 11 22:45:48 2024 ] epoch: 099/200	data_type: train	batch: 00000/00001	bp loss: 0.01107	
+[ Mon Mar 11 22:46:00 2024 ] epoch: 099/200	data_type: train	batch: 00001/00001	bp loss: 0.68032	
+[ Mon Mar 11 22:46:00 2024 ] epoch: 099/200	data_type: train	bp loss: 0.7513
+[ Mon Mar 11 22:46:05 2024 ] epoch: 099/200	data_type: val  	batch: 51/52	bp loss: 0.5598	
+[ Mon Mar 11 22:46:05 2024 ] epoch: 099/200	data_type: val  		bp loss: 0.5803
+[ Mon Mar 11 22:46:08 2024 ] data_type: val  		best mean loss: 0.580 (epoch: 099)
+[ Mon Mar 11 22:46:10 2024 ] epoch: 100/200	data_type: train	batch: 00000/00001	bp loss: 0.80599	
+[ Mon Mar 11 22:46:21 2024 ] epoch: 100/200	data_type: train	batch: 00001/00001	bp loss: 0.41605	
+[ Mon Mar 11 22:46:21 2024 ] epoch: 100/200	data_type: train	bp loss: 0.7286
+[ Mon Mar 11 22:46:27 2024 ] epoch: 100/200	data_type: val  	batch: 51/52	bp loss: 0.1338	
+[ Mon Mar 11 22:46:27 2024 ] epoch: 100/200	data_type: val  		bp loss: 0.6070
+[ Mon Mar 11 22:46:29 2024 ] data_type: val  		best mean loss: 0.607 (epoch: 100)
+[ Mon Mar 11 22:46:31 2024 ] epoch: 101/200	data_type: train	batch: 00000/00001	bp loss: 0.13652	
+[ Mon Mar 11 22:46:42 2024 ] epoch: 101/200	data_type: train	batch: 00001/00001	bp loss: 1.19167	
+[ Mon Mar 11 22:46:42 2024 ] epoch: 101/200	data_type: train	bp loss: 0.7352
+[ Mon Mar 11 22:46:48 2024 ] epoch: 101/200	data_type: val  	batch: 51/52	bp loss: 0.0820	
+[ Mon Mar 11 22:46:48 2024 ] epoch: 101/200	data_type: val  		bp loss: 0.7646
+[ Mon Mar 11 22:46:50 2024 ] data_type: val  		best mean loss: 0.765 (epoch: 101)
+[ Mon Mar 11 22:46:52 2024 ] epoch: 102/200	data_type: train	batch: 00000/00001	bp loss: 0.11066	
+[ Mon Mar 11 22:47:03 2024 ] epoch: 102/200	data_type: train	batch: 00001/00001	bp loss: 1.02587	
+[ Mon Mar 11 22:47:04 2024 ] epoch: 102/200	data_type: train	bp loss: 0.7451
+[ Mon Mar 11 22:47:09 2024 ] epoch: 102/200	data_type: val  	batch: 51/52	bp loss: 0.3208	
+[ Mon Mar 11 22:47:09 2024 ] epoch: 102/200	data_type: val  		bp loss: 0.8643
+[ Mon Mar 11 22:47:11 2024 ] data_type: val  		best mean loss: 0.864 (epoch: 102)
+[ Mon Mar 11 22:47:13 2024 ] epoch: 103/200	data_type: train	batch: 00000/00001	bp loss: 0.11312	
+[ Mon Mar 11 22:47:24 2024 ] epoch: 103/200	data_type: train	batch: 00001/00001	bp loss: 0.57346	
+[ Mon Mar 11 22:47:25 2024 ] epoch: 103/200	data_type: train	bp loss: 0.7378
+[ Mon Mar 11 22:47:30 2024 ] epoch: 103/200	data_type: val  	batch: 51/52	bp loss: 0.2307	
+[ Mon Mar 11 22:47:30 2024 ] epoch: 103/200	data_type: val  		bp loss: 0.6857
+[ Mon Mar 11 22:47:32 2024 ] data_type: val  		best mean loss: 0.686 (epoch: 103)
+[ Mon Mar 11 22:47:34 2024 ] epoch: 104/200	data_type: train	batch: 00000/00001	bp loss: 0.45146	
+[ Mon Mar 11 22:47:45 2024 ] epoch: 104/200	data_type: train	batch: 00001/00001	bp loss: 0.45057	
+[ Mon Mar 11 22:47:46 2024 ] epoch: 104/200	data_type: train	bp loss: 0.6942
+[ Mon Mar 11 22:47:51 2024 ] epoch: 104/200	data_type: val  	batch: 51/52	bp loss: 0.2309	
+[ Mon Mar 11 22:47:51 2024 ] epoch: 104/200	data_type: val  		bp loss: 0.6674
+[ Mon Mar 11 22:47:54 2024 ] data_type: val  		best mean loss: 0.667 (epoch: 104)
+[ Mon Mar 11 22:47:55 2024 ] epoch: 105/200	data_type: train	batch: 00000/00001	bp loss: 0.31366	
+[ Mon Mar 11 22:48:07 2024 ] epoch: 105/200	data_type: train	batch: 00001/00001	bp loss: 0.45751	
+[ Mon Mar 11 22:48:07 2024 ] epoch: 105/200	data_type: train	bp loss: 0.7184
+[ Mon Mar 11 22:48:13 2024 ] epoch: 105/200	data_type: val  	batch: 51/52	bp loss: 0.0932	
+[ Mon Mar 11 22:48:13 2024 ] epoch: 105/200	data_type: val  		bp loss: 0.7106
+[ Mon Mar 11 22:48:15 2024 ] data_type: val  		best mean loss: 0.711 (epoch: 105)
+[ Mon Mar 11 22:48:17 2024 ] epoch: 106/200	data_type: train	batch: 00000/00001	bp loss: 0.20014	
