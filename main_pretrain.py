@@ -265,10 +265,10 @@ def evaluate(model, data_type, data_loader, config, logger=None, writer=None):
             # pred_var += 1e-10
             # y_pred = val_to_distribution(pred, pred_var).cpu()
             # y_pred = torch.tensor(y_pred.view(-1, 1), requires_grad=True)
-            bp_loss = (
+            bp_loss = -(
                 config["attr_ratio"] * importance_loss
                 + (1 - config["attr_ratio"]) * attr_loss
-            ).abs_()
+            )
             # gt_distribution = torch.distributions.Normal(card, torch.sqrt(var))
             # bp_loss = wasserstein_loss(gt_distribution, distribution_cpu) + train_config[
             #     "weight_decay_film"] * filmreg.cpu()  # -distribution_cpu.log_prob(card).mean()

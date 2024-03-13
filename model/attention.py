@@ -111,7 +111,7 @@ class RegressorBlock(nn.Module):
 
         return x
 class TransformerRegressor(nn.Module):
-    def __init__(self, embed_dim=384, depth=4, num_heads=6, mlp_ratio=4., qkv_bias=False, qk_scale=None,
+    def __init__(self, embed_dim=128, depth=4, num_heads=6, mlp_ratio=4., qkv_bias=False, qk_scale=None,
                  drop_rate=0., attn_drop_rate=0., drop_path_rate=0.1, norm_layer=nn.LayerNorm):
         super().__init__()
         dpr = [x.item() for x in torch.linspace(0, drop_path_rate, depth)]

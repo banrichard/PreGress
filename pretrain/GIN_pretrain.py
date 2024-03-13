@@ -74,11 +74,11 @@ class GIN(PreTrain):
         # self.mask_token = nn.Parameter(torch.zeros(1, 1, self.hid_dim))
 
         if mask is not None:
-            # pos_emd_vis = self.projection_head(pred[~mask]).reshape(batch_size, -1, channel)
-            # pos_emd_mask = self.projection_head(pred[~mask]).reshape(-1, channel)
-            # _, num_mask, _ = pos_emd_mask.shape
+            pos_emd_vis = self.projection_head(pred[~mask]).reshape(-1, self.hid_dim)
+            pos_emd_mask = self.projection_head(pred[~mask]).reshape(-1, self.hid_dim)
+            _, num_mask, _ = pos_emd_mask.shape
             # mask_token = self.mask_token.expand(batch_size, num_mask, -1)
-            pred_attr = self.matcher.forward(pred[~mask])
+            pred_attr = self.matcher(pred[mask],pred[~mask],)
             # temporarily can not find a good solution to solve the attr loss, current is cossimilarity
             attr_loss = self.similarity_loss(pred_attr, data.x[~mask])
             return importance_loss, attr_loss
