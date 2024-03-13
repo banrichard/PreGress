@@ -7,7 +7,6 @@ import torch.nn as nn
 class PreTrain(torch.nn.Module):
     def __init__(self, gnn_type='TransformerConv', dataset_name='QM9', hid_dim=128, num_layer=3, num_epoch=100,dropout=0.5):
         super().__init__()
-        self.device = torch.device('cuda:3' if torch.cuda.is_available() else 'cpu')
         self.dataset_name = dataset_name
         self.gnn_type = gnn_type
         self.num_layer = num_layer
@@ -25,8 +24,6 @@ class PreTrain(torch.nn.Module):
             self.gnn = Backbone("GIN", self.num_layer, input_dim, self.hid_dim, out_dim,self.dropout)
         else:
             raise ValueError(f"Unsupported GNN type: {self.gnn_type}")
-        self.gnn.to(self.device)
-        self.optimizer = Adam(self.gnn.parameters(), lr=0.001, weight_decay=0.00005)
 
 
 

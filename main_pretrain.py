@@ -27,10 +27,10 @@ train_config = {
     "max_ngel": 8,  # max_number_graph_edge_labels: 16, 64, 256
     "base": 2,
     "cuda": True,
-    "gpu_id": 3,
+    "gpu_id": 2,
     "num_workers": 16,
     "epochs": 200,
-    "batch_size": 256,
+    "batch_size": 128,
     "update_every": 1,  # actual batch_sizer = batch_size * update_every
     "print_every": 10,
     "init_emb": True,  # None, Normal
@@ -53,18 +53,11 @@ train_config = {
     "decay_patience": 20,
     "max_grad_norm": 8,
     "model": "GIN",  # CNN, RNN, TXL, RGCN, RGIN, RSIN
-    "emb_dim": 128,
+    "emb_dim": 32,
     "activation_function": "relu",  # sigmoid, softmax, tanh, relu, leaky_relu, prelu, gelu
-    "motif_hidden_dim": 128,
-    "motif_num_layers": 3,
-    "predict_net": "CCANet",  # MeanPredictNet, SumPredictNet, MaxPredictNet,
     # MeanAttnPredictNet, SumAttnPredictNet, MaxAttnPredictNet,
     # MeanMemAttnPredictNet, SumMemAttnPredictNet, MaxMemAttnPredictNet,
     # DIAMNet, CCANet
-    "predict_net_add_enc": False,
-    "predict_net_add_degree": False,
-    "predict_net_hidden_dim": 128,
-    "predict_net_num_heads": 4,
     "mem_len": 1,
     "predict_net_mem_init": "mean",
     # mean, sum, max, attn, circular_mean, circular_sum, circular_max, circular_attn, lstm
@@ -149,8 +142,7 @@ def train(
         total_loss_per_step = (
             train_config["attr_ratio"] * importance_loss
             + (1 - train_config["attr_ratio"]) * attr_loss
-        ).abs_()
-        total_loss_per_step = total_loss_per_step.to(torch.float32)
+        )
         with torch.autograd.detect_anomaly():
             total_loss_per_step.backward()
         bp_loss_item = total_loss_per_step.item()
@@ -216,72 +208,23 @@ def evaluate(model, data_type, data_loader, config, logger=None, writer=None):
         "error": {"importance_loss": 0.0, "attr_loss": 0.0},
         "time": {"avg": list(), "total": 0.0},
     }
-
-    if config["reg_loss"] == "MAE":
-        reg_crit = lambda pred, target: F.l1_loss(F.relu(pred), target)
-    elif config["reg_loss"] == "MSE":
-        reg_crit = lambda pred, target: F.mse_loss(pred, target)
-    elif config["reg_loss"] == "SMSE":
-        reg_crit = lambda pred, target: F.smooth_l1_loss(pred, target)
-    elif config["reg_loss"] == "MAEMSE":
-        reg_crit = lambda pred, target: F.mse_loss(F.relu(pred), target) + F.l1_loss(
-            F.relu(pred), target
-        )
-    elif config["reg_loss"] == "HUBER":
-        reg_crit = lambda pred, target: F.huber_loss(F.relu(pred), target)
-    else:
-        raise NotImplementedError
-
-    if config["bp_loss"] == "MAE":
-        bp_crit = lambda pred, target: F.l1_loss(F.leaky_relu(pred), target)
-    elif config["bp_loss"] == "MSE":
-        bp_crit = lambda pred, target: F.mse_loss(pred, target)
-    elif config["bp_loss"] == "SMSE":
-        bp_crit = lambda pred, target: F.smooth_l1_loss(pred, target)
-    elif config["bp_loss"] == "MAEMSE":
-        bp_crit = lambda pred, target: F.mse_loss(
-            F.leaky_relu(pred), target
-        ) + F.l1_loss(F.leaky_relu(pred), target)
-    elif config["bp_loss"] == "HUBER":
-        bp_crit = lambda pred, target: F.huber_loss(pred, target)
-    else:
-        raise NotImplementedError
-    # reg_crit_mean = lambda pred, target: F.l1_loss(F.leaky_relu(pred), target)
-    # reg_crit_var = lambda pred, target: F.mse_loss(F.leaky_relu(pred), target)
-    # bp_crit_mean = lambda pred, target: F.l1_loss(F.leaky_relu(pred), target)
-    # bp_crit_var = lambda pred, target: F.mse_loss(F.leaky_relu(pred), target)
     model.eval()
-    model = model.to('cpu')
+    model = model.to("cpu")
     total_time = 0
     with torch.no_grad():
         for batch_id, batch in enumerate(data_loader):
             batch.x = batch.x.to(torch.float32)
             st = time.time()
             importance_loss, attr_loss = model(batch)
-            # distribution, filmreg = model(motif_x, motif_edge_index, motif_edge_attr, graph)
-            # distribution_cpu = torch.distributions.Normal(distribution.mean.cpu(), distribution.stddev.cpu())
-
-            # pred += 1e-10
-            # pred_var += 1e-10
-            # y_pred = val_to_distribution(pred, pred_var).cpu()
-            # y_pred = torch.tensor(y_pred.view(-1, 1), requires_grad=True)
-            bp_loss = -(
+            bp_loss = (
                 config["attr_ratio"] * importance_loss
                 + (1 - config["attr_ratio"]) * attr_loss
             )
-            # gt_distribution = torch.distributions.Normal(card, torch.sqrt(var))
-            # bp_loss = wasserstein_loss(gt_distribution, distribution_cpu) + train_config[
-            #     "weight_decay_film"] * filmreg.cpu()  # -distribution_cpu.log_prob(card).mean()
-            #
-            # bp_loss = wasserstein_loss(gt_distribution, distribution_cpu)
             et = time.time()
-            # pred,alpha,beta = model(pattern, pattern_len, pattern_e_len, graph, graph_len, graph_e_len)
             evaluate_results["time"]["total"] += et - st
             avg_t = et - st
 
             evaluate_results["time"]["avg"].extend([avg_t])
-            # pred = distribution.mean
-            # pred_var = distribution.variance
             bp_loss_item = bp_loss.mean().item()
             total_bp_loss += bp_loss_item
             evaluate_results["error"]["importance_loss"] += importance_loss.sum().item()
@@ -311,15 +254,11 @@ def evaluate(model, data_type, data_loader, config, logger=None, writer=None):
                 )
             )
 
-        # evaluate_results["error"]["mae"] = evaluate_results["error"]["mae"] / total_cnt
-        # evaluate_results["error"]["mse"] = evaluate_results["error"]["mse"] / total_cnt
-
     gc.collect()
     return mean_bp_loss, evaluate_results, total_time
 
 
 def test(save_model_dir, test_loaders, config, logger, writer):
-    # global loader_idx, mean_reg_loss, mean_bp_loss, mean_var_loss, evaluate_results, _time, f
     total_test_time = 0
     model.load_state_dict(
         torch.load(
@@ -528,9 +467,7 @@ if __name__ == "__main__":
                 model.state_dict(),
                 os.path.join(
                     save_model_dir,
-                    "best_epoch_{:s}.pt".format(
-                        train_config["model"]
-                    ),
+                    "best_epoch_{:s}.pt".format(train_config["model"]),
                 ),
             )
             with open(
