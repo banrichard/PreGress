@@ -13,6 +13,7 @@ class PreTrain(torch.nn.Module):
         self.epochs = num_epoch
         self.hid_dim = hid_dim
         self.dropout = dropout
+        # self.prompt = torch.embedding(1,2)
     def initialize_gnn(self, input_dim, out_dim):
         if self.gnn_type == "GCN":
             self.gnn = Backbone("GCN", self.num_layer, input_dim, self.hid_dim, output_dim=out_dim)

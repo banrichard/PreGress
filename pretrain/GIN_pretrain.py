@@ -7,6 +7,7 @@ from pretrain.base import PreTrain
 from model.mlp import Mlp
 from model.attention import TransformerRegressor
 import torch.nn.functional as F
+from lightly.loss import NegativeCosineSimilarity
 
 
 class GIN(PreTrain):
@@ -20,23 +21,25 @@ class GIN(PreTrain):
         self.init_emb = nn.Parameter(torch.randn(self.gnn.input_dim))
         self.mask_token = nn.Parameter(torch.zeros(1, self.hid_dim))
         self.projection_head = nn.Sequential(
-            nn.Linear(hid_dim, hid_dim),
+            nn.Linear(hid_dim + 2, hid_dim),
             nn.ReLU(inplace=True),
             nn.Linear(hid_dim, output_dim),
         )
         self.pos_decoder = nn.Linear(self.hid_dim, self.hid_dim)
-        self.matcher = nn.Linear(self.hid_dim,self.input_dim)
+        self.matcher = nn.Linear(self.hid_dim, self.input_dim)
         self.build_regressor()
+        self.sim_loss = NegativeCosineSimilarity()
+        self.loss_embedding = torch.zeros((1, 2), requires_grad=True)
 
     @torch.no_grad()
     def momentum_update(self, base_momentum=0):
         """Momentum update of the teacher network."""
         for param_encoder, param_teacher in zip(
-            self.student.parameters(), self.teacher.parameters()
+                self.student.parameters(), self.teacher.parameters()
         ):
             param_teacher.data = (
-                param_teacher.data * base_momentum
-                + param_encoder.data * (1.0 - base_momentum)
+                    param_teacher.data * base_momentum
+                    + param_encoder.data * (1.0 - base_momentum)
             )
 
     def build_regressor(self):
@@ -69,11 +72,7 @@ class GIN(PreTrain):
         )
 
     def similarity_loss(self, pred_feat, orig_feat):
-        return -(
-            F.cosine_similarity(pred_feat, orig_feat, dim=1)
-            .mean(dim=-1)
-            .to(torch.float32)
-        )
+        return self.sim_loss(pred_feat, orig_feat)
 
     def forward(self, data, use_mask=True):
         x, edge_index, edge_attr, importance = (
@@ -88,9 +87,10 @@ class GIN(PreTrain):
             mask = None
         # generate embedding
         pred = self.gnn(x, edge_index, edge_attr)
-        pred_importance = self.projection_head(pred)
+        loss_embedding = self.loss_embedding.repeat(pred.shape[0], 1)
+        pred_concated = torch.concat([pred, loss_embedding.to(pred.device)], dim=1)
+        pred_importance = self.projection_head(pred_concated)
         importance_loss = self.importance_loss(pred_importance, importance)
-        num_nodes, channel = x.shape
 
         if mask is not None:
             pos_emd_vis = self.pos_decoder(pred[mask])
@@ -103,4 +103,5 @@ class GIN(PreTrain):
             pred_attr = self.matcher(pred_attr)
             # temporarily can not find a good solution to solve the attr loss, current is cossimilarity
             attr_loss = self.similarity_loss(pred_attr, data.x[~mask])
+            self.loss_embedding = torch.tensor([[importance_loss, attr_loss]], dtype=torch.float32)
             return importance_loss, attr_loss

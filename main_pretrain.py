@@ -83,17 +83,17 @@ train_config = {
 
 
 def train(
-    model,
-    optimizer,
-    scheduler,
-    data_type,
-    data_loader,
-    device,
-    config,
-    epoch,
-    logger=None,
-    writer=None,
-    bottleneck=False,
+        model,
+        optimizer,
+        scheduler,
+        data_type,
+        data_loader,
+        device,
+        config,
+        epoch,
+        logger=None,
+        writer=None,
+        bottleneck=False,
 ):
     global bp_crit, reg_crit
     epoch_step = len(data_loader)
@@ -139,10 +139,7 @@ def train(
         batch.x = batch.x.to(torch.float32)
         s = time.time()
         importance_loss, attr_loss = model(batch)
-        total_loss_per_step = (
-            train_config["attr_ratio"] * importance_loss
-            + (1 - train_config["attr_ratio"]) * attr_loss
-        )
+        total_loss_per_step = importance_loss + attr_loss
         with torch.autograd.detect_anomaly():
             total_loss_per_step.backward()
         bp_loss_item = total_loss_per_step.item()
@@ -156,8 +153,8 @@ def train(
             )
 
         if logger and (
-            (i / config["batch_size"]) % config["print_every"] == 0
-            or i == epoch_step - 1
+                (i / config["batch_size"]) % config["print_every"] == 0
+                or i == epoch_step - 1
         ):
             logger.info(
                 "epoch: {:0>3d}/{:0>3d}\tdata_type: {:<5s}\tbatch: {:0>5d}/{:0>5d}\tbp loss: {:.5f}\t".format(
@@ -216,10 +213,7 @@ def evaluate(model, data_type, data_loader, config, logger=None, writer=None):
             batch.x = batch.x.to(torch.float32)
             st = time.time()
             importance_loss, attr_loss = model(batch)
-            bp_loss = (
-                config["attr_ratio"] * importance_loss
-                + (1 - config["attr_ratio"]) * attr_loss
-            )
+            bp_loss = importance_loss + attr_loss
             et = time.time()
             evaluate_results["time"]["total"] += et - st
             avg_t = et - st
@@ -228,7 +222,7 @@ def evaluate(model, data_type, data_loader, config, logger=None, writer=None):
             bp_loss_item = bp_loss.mean().item()
             total_bp_loss += bp_loss_item
             evaluate_results["error"]["importance_loss"] += importance_loss.sum().item()
-            evaluate_results["error"]["attr_loss"] += attr_loss.sum().item()
+            evaluate_results["error"]["attr_loss"] += attr_loss.mean().item()
             et = time.time()
             total_time += et - st
             total_cnt += 1
@@ -285,16 +279,16 @@ def test(save_model_dir, test_loaders, config, logger, writer):
         "data_type: {:<5s}\tbest mean loss: {:.3f}".format("test", mean_bp_loss)
     )
     with open(
-        os.path.join(
-            save_model_dir,
-            "%s_%s_%s_pre_trained.json"
-            % (
-                train_config["model"],
-                "best_test",
-                train_config["dataset"],
+            os.path.join(
+                save_model_dir,
+                "%s_%s_%s_pre_trained.json"
+                % (
+                        train_config["model"],
+                        "best_test",
+                        train_config["dataset"],
+                ),
             ),
-        ),
-        "w",
+            "w",
     ) as f:
         json.dump(evaluate_results, f)
 
@@ -377,7 +371,6 @@ if __name__ == "__main__":
             "Currently, the %s model is not supported" % (train_config["model"])
         )
     # model = torch.compile(model)
-    model = model.to(device)
     logger.info(model)
     logger.info(
         "num of parameters: %d"
@@ -471,7 +464,7 @@ if __name__ == "__main__":
                 ),
             )
             with open(
-                os.path.join(save_model_dir, "%s_%d.json" % ("val", epoch)), "w"
+                    os.path.join(save_model_dir, "%s_%d.json" % ("val", epoch)), "w"
             ) as f:
                 json.dump(evaluate_results, f)
                 # for data_type in data_loaders.keys():

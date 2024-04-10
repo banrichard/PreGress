@@ -125,7 +125,6 @@ class RegressorBlock(nn.Module):
             attn_head_dim=attn_head_dim,
         )
 
-        # self.drop_path = nn.Identity()  # DropPath(drop_path) if drop_path > 0. else
         mlp_hidden_dim = int(dim * mlp_ratio)
 
         self.mlp_cross = Mlp(
@@ -210,7 +209,7 @@ class TransformerRegressor(nn.Module):
             position_full = torch.cat([pos_embed_unmasked, pos_embed_masked], dim=0)
             x_masked = blk(
                 x_masked, x_full, pos_embed_masked, position_full, bool_masked_pos
-            )
+            ) #x_q, x_kv, pos_q, pos_k, bool_masked_pos
         x_masked = self.norm(x_masked)
         latent_pred = x_masked
 
