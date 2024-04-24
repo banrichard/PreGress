@@ -25,7 +25,7 @@ class GIN(PreTrain):
             nn.ReLU(inplace=True),
             nn.Linear(hid_dim, output_dim),
         )
-        self.pos_decoder = nn.Linear(self.hid_dim, self.hid_dim)
+        self.pos_decoder = nn.Linear(self.hid_dim + 2, self.hid_dim)
         self.matcher = nn.Linear(self.hid_dim, self.input_dim)
         self.build_regressor()
         self.sim_loss = NegativeCosineSimilarity()
@@ -93,12 +93,12 @@ class GIN(PreTrain):
         importance_loss = self.importance_loss(pred_importance, importance)
 
         if mask is not None:
-            pos_emd_vis = self.pos_decoder(pred[mask])
-            pos_emd_mask = self.pos_decoder(pred[~mask])
+            pos_emd_vis = self.pos_decoder(pred_concated[mask])
+            pos_emd_mask = self.pos_decoder(pred_concated[~mask])
             num_mask, _ = pos_emd_mask.shape
             mask_token = self.mask_token.expand(num_mask, -1)
             pred_attr = self.mask_regressor(
-                mask_token, pred[mask], pos_emd_mask, pos_emd_vis, mask
+                mask_token, pred_concated[mask], pos_emd_mask, pos_emd_vis, mask
             )
             pred_attr = self.matcher(pred_attr)
             # temporarily can not find a good solution to solve the attr loss, current is cossimilarity

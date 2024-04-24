@@ -201,10 +201,9 @@ def evaluate(model, data_type, data_loader, config, logger=None, writer=None):
     total_bp_loss = 0
     total_cnt = 1e-6
 
-    evaluate_results = {
-        "error": {"importance_loss": 0.0, "attr_loss": 0.0},
-        "time": {"avg": list(), "total": 0.0},
-    }
+    evaluate_results = {"mean": {"importance": list()},
+                        "error": {"importance_loss": list(), "attr_loss": list()},
+                        "time": {"avg": list(), "total": 0.0}}
     model.eval()
     model = model.to("cpu")
     total_time = 0
@@ -212,6 +211,8 @@ def evaluate(model, data_type, data_loader, config, logger=None, writer=None):
         for batch_id, batch in enumerate(data_loader):
             batch.x = batch.x.to(torch.float32)
             st = time.time()
+            importance = batch.degree_centrality
+            evaluate_results["mean"]["importance"].extend(importance.view(-1).tolist())
             importance_loss, attr_loss = model(batch)
             bp_loss = importance_loss + attr_loss
             et = time.time()
@@ -221,8 +222,8 @@ def evaluate(model, data_type, data_loader, config, logger=None, writer=None):
             evaluate_results["time"]["avg"].extend([avg_t])
             bp_loss_item = bp_loss.mean().item()
             total_bp_loss += bp_loss_item
-            evaluate_results["error"]["importance_loss"] += importance_loss.sum().item()
-            evaluate_results["error"]["attr_loss"] += attr_loss.mean().item()
+            evaluate_results["error"]["importance_loss"].extend(importance_loss.view(-1).tolist())
+            evaluate_results["error"]["attr_loss"].extend(attr_loss.view(-1).tolist())
             et = time.time()
             total_time += et - st
             total_cnt += 1
