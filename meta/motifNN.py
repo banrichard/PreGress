@@ -12,7 +12,6 @@ from torch_geometric.nn.conv import MessagePassing, GATConv, GraphConv, SAGEConv
 from torch_geometric.nn.inits import reset, uniform, zeros
 
 
-
 class NNGINConv(MessagePassing):
     """
     Add the node embedding with edge embedding
@@ -103,22 +102,22 @@ class NNGINConcatConv(MessagePassing):
 
 
 class MotifGNN(nn.Module):
-    def __init__(self, num_layers, num_g_hid, num_e_hid, out_g_ch, model_type, dropout, inter_hid=64):
+    def __init__(self, num_layers, num_g_hid, num_e_hid, out_g_ch, model_type, dropout, inter_hid=128):
         super(MotifGNN, self).__init__()
         self.num_layers = num_layers
-        self.num_hid = num_g_hid
+        self.num_g_hid = num_g_hid
         self.num_e_hid = num_e_hid
         self.num_out = out_g_ch
         self.inter_hid = inter_hid
         self.model_type = model_type
         self.dropout = dropout
         self.convs = nn.ModuleList()
-        self.agg = nn.Linear(self.num_out, self.inter_hid, bias=False)
+        self.agg = nn.Linear(self.num_out, self.num_out, bias=False)
         cov_layer = self.build_cov_layer(self.model_type)
 
         for l in range(self.num_layers):
-            hidden_input_dim = 1 if l == 0 else self.num_hid
-            hidden_output_dim = self.num_out if l == self.num_layers - 1 else self.num_hid
+            hidden_input_dim = 1 if l == 0 else self.num_g_hid
+            hidden_output_dim = self.num_out if l == self.num_layers - 1 else self.num_g_hid
             e_in_ch = 1
             if self.model_type == "GIN" or self.model_type == "GINE" or self.model_type == "GAT" \
                     or self.model_type == "SAGE" or self.model_type == "GCN" \
@@ -150,9 +149,12 @@ class MotifGNN(nn.Module):
                 node_nn=nn.Sequential(nn.Linear(in_ch, hid_ch), nn.ReLU(), nn.Linear(hid_ch, hid_ch)))
         elif model_type == "NNGINConcat":
             return lambda in_ch, hid_ch, e_in_ch, e_hid_ch: NNGINConcatConv(
-                edge_nn=nn.Sequential(nn.Linear(e_in_ch, e_hid_ch), nn.ReLU(),
+                edge_nn=nn.Sequential(nn.Linear(e_in_ch, e_hid_ch),
+                                      nn.ReLU(),
                                       nn.Linear(e_hid_ch, e_hid_ch)),
-                node_nn=nn.Sequential(nn.Linear(in_ch + e_hid_ch, hid_ch), nn.ReLU(), nn.Linear(hid_ch, hid_ch)))
+                node_nn=nn.Sequential(nn.Linear(in_ch + e_hid_ch, hid_ch),
+                                      nn.ReLU(),
+                                      nn.Linear(hid_ch, hid_ch)))
         elif model_type == "GAT":
             return GATConv
         elif model_type == "SAGE":
@@ -168,10 +170,10 @@ class MotifGNN(nn.Module):
         torch.nn.init.xavier_uniform_(self.agg.weight)
 
     def forward(self, x, edge_index, edge_attr=None):
-        x, edge_index, edge_attr = x.squeeze(0), edge_index.squeeze(0), edge_attr.squeeze(0)
-        x = x.cuda(0)
-        edge_index = edge_index.cuda(0)
-        edge_attr = edge_attr.cuda(0)
+        # x, edge_index, edge_attr = x.squeeze(0), edge_index.squeeze(0), edge_attr.squeeze(0)
+        # x = x.cuda(0)
+        # edge_index = edge_index.cuda(0)
+        # edge_attr = edge_attr.cuda(0)
         if self.model_type == 'FA' or self.model_type == 'GCN2':
             x_0 = x
         else:
@@ -195,4 +197,3 @@ class MotifGNN(nn.Module):
         x = torch.unsqueeze(torch.sum(x, dim=0), dim=0)  # agg
         x = F.relu(self.agg(x))  # relu(Q*agg(x))
         return x
-

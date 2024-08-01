@@ -69,7 +69,7 @@ train_config = {
     "num_g_hid": 128,
     "num_e_hid": 128,
     "out_g_ch": 1,
-    "graph_num_layers": 3,
+    "graph_num_layers": 5,
     "queryset_dir": "queryset",
     "true_card_dir": "label",
     "dataset": "QM9",

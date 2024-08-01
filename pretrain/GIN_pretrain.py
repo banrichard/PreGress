@@ -19,14 +19,14 @@ class GIN(PreTrain):
         self.hid_dim = hid_dim
         self.initialize_gnn(self.input_dim, self.hid_dim)
         self.init_emb = nn.Parameter(torch.randn(self.gnn.input_dim))
-        self.mask_token = nn.Parameter(torch.zeros(1, self.hid_dim))
+        self.mask_token = nn.Parameter(torch.zeros(1, self.hid_dim + 2))
         self.projection_head = nn.Sequential(
             nn.Linear(hid_dim + 2, hid_dim),
             nn.ReLU(inplace=True),
             nn.Linear(hid_dim, output_dim),
         )
-        self.pos_decoder = nn.Linear(self.hid_dim + 2, self.hid_dim)
-        self.matcher = nn.Linear(self.hid_dim, self.input_dim)
+        self.pos_decoder = nn.Linear(self.hid_dim + 2, self.hid_dim + 2)
+        self.matcher = nn.Linear(self.hid_dim + 2, self.input_dim)
         self.build_regressor()
         self.sim_loss = NegativeCosineSimilarity()
         self.loss_embedding = torch.zeros((1, 2), requires_grad=True)
@@ -44,7 +44,7 @@ class GIN(PreTrain):
 
     def build_regressor(self):
         self.mask_regressor = TransformerRegressor(
-            embed_dim=self.hid_dim,
+            embed_dim=self.hid_dim + 2,
             drop_path_rate=0.1,
         )
 

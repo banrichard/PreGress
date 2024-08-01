@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch import optim
 from torch_geometric.nn import GCNConv, global_mean_pool, GATConv, TransformerConv
-from torch_geometric.utils import sort_edge_index, add_self_loops, to_undirected
+# from torch_geometric.utils import sort_edge_index, add_self_loops, to_undirected
 from meta.motifNN import MotifGNN
 from meta.maml_learner import MAML
 from model.graphconv import Backbone
@@ -12,11 +12,11 @@ from torch_geometric.data import Batch
 
 def model_components(args, round=1, pre_train_path='', gnn_type='GIN', project_head_path=None):
     if round == 1:
-        model = Pipeline(input_dim=11, pre_train_path="../saved_model/best_epoch_GIN.pt")
+        model = Pipeline(input_dim=11, layer_num=args.layer_num, pre_train_path="../saved_model/best_epoch_GIN.pt")
     elif round == 2 or round == 3:
         if project_head_path is None:
             raise ValueError("project_head_path is None! it should be a specific path when round=2 or 3")
-        model = Pipeline(input_dim=11, pre_train_path="../saved_model/best_epoch_GIN.pt",
+        model = Pipeline(input_dim=11, layer_num=args.layer_num, pre_train_path="../saved_model/best_epoch_GIN.pt",
                          project_head_path=project_head_path)
     else:
         raise ValueError('round value wrong! (it should be 1,2,3)')
@@ -29,17 +29,19 @@ def model_components(args, round=1, pre_train_path='', gnn_type='GIN', project_h
 
 
 class Pipeline(torch.nn.Module):
-    def __init__(self, input_dim, pre_train_path=None, layer_num=3, hid_dim=128, frozen_gnn='all',
-                 frozen_project_head=False, pool_mode=0, gnn_type='GIN', project_head_path=None):
+    def __init__(self, input_dim, pre_train_path=None, layer_num=3, hid_dim=64, frozen_gnn='all',
+                 frozen_project_head=False, pool_mode=0, gnn_type='GIN', project_head_path=None,m_layer_num=1):
 
         super().__init__()
         self.pool_mode = pool_mode
+        self.norm = nn.LayerNorm(hid_dim)
         self.gnn = Backbone(type=gnn_type, num_layers=layer_num, input_dim=input_dim, hidden_dim=hid_dim,
                             output_dim=hid_dim)
-        self.motifnn = MotifGNN(num_layers=layer_num, num_g_hid=1, num_e_hid=1, out_g_ch=hid_dim, model_type="NNGINConcat",
+        self.motifnn = MotifGNN(num_layers=m_layer_num, num_g_hid=64, num_e_hid=64, out_g_ch=hid_dim,
+                                model_type="NNGINConcat",
                                 dropout=0.2)
         self.project_head = torch.nn.Sequential(
-            torch.nn.Linear(hid_dim * 2, 1),
+            torch.nn.Linear(hid_dim, 1),
             torch.nn.ReLU())
         self.with_prompt = False
         self.set_gnn_project_head(pre_train_path, frozen_gnn, frozen_project_head, project_head_path)
@@ -66,6 +68,10 @@ class Pipeline(torch.nn.Module):
             for p in self.project_head.parameters():
                 p.requires_grad = False
 
+    def to_cuda(self):
+        self.motifnn = self.motifnn.cuda()
+        self.project_head = self.project_head.cuda()
+
     def forward(self, graph_batch: Batch, motif_batch):
         # num_graphs = graph_batch.num_graphs
         if self.with_prompt:
@@ -85,11 +91,14 @@ class Pipeline(torch.nn.Module):
         else:
             graph_emb = self.gnn(graph_batch.x, graph_batch.edge_index, graph_batch.edge_attr)
             motif_emb = self.motifnn(motif_batch.x, motif_batch.edge_index, motif_batch.edge_attr)
-            final_emb = torch.cat([graph_emb, motif_emb], dim=1)
-            pre = self.project_head(final_emb)
+            # graph_emb = global_mean_pool(graph_emb, batch=graph_batch.batch)
+            graph_emb = self.norm(graph_emb)
+            # final_emb = torch.cat([graph_emb, motif_emb], dim=1)
+            graph_emb += motif_emb  # x = x + p
+            pre = self.project_head(graph_emb)
             return pre
 
 
 if __name__ == "__main__":
-    model = Pipeline(input_dim=11, pre_train_path="../saved_model/best_epoch_GIN.pt")
+    model = Pipeline(input_dim=11, layer_num=5, pre_train_path="../saved_model/best_epoch_GIN.pt")
     print(model)
