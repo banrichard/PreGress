@@ -1,15 +1,13 @@
 import torch
-from typing import Union, Tuple, Callable
+from typing import Union, Callable
 
 import torch.nn as nn
-from torch_geometric.nn import GCNConv, NNConv
+from torch_geometric.nn import GCNConv, NNConv, TransformerConv
 from torch_geometric.typing import OptTensor, OptPairTensor, Adj, Size
-
 from torch import Tensor
-from torch.nn import Parameter
 import torch.nn.functional as F
 from torch_geometric.nn.conv import MessagePassing, GATConv, GraphConv, SAGEConv, GINConv, GINEConv
-from torch_geometric.nn.inits import reset, uniform, zeros
+from torch_geometric.nn.inits import reset
 
 
 class NNGINConv(MessagePassing):
@@ -163,6 +161,8 @@ class MotifGNN(nn.Module):
             return GCNConv
         elif model_type == "Graph":
             return GraphConv
+        elif model_type == "Transformer":
+            return TransformerConv
         else:
             print("Unsupported model type!")
 

@@ -10,6 +10,8 @@ import torch.nn.functional as F
 from lightly.loss import NegativeCosineSimilarity
 
 
+
+
 class GIN(PreTrain):
     def __init__(self, num_layer, input_dim, hid_dim, output_dim, dropout):
         super().__init__("GIN", dropout=dropout)
@@ -25,10 +27,11 @@ class GIN(PreTrain):
             nn.ReLU(inplace=True),
             nn.Linear(hid_dim, output_dim),
         )
+        # from iclr20
         self.pos_decoder = nn.Linear(self.hid_dim + 2, self.hid_dim + 2)
         self.matcher = nn.Linear(self.hid_dim + 2, self.input_dim)
         self.build_regressor()
-        self.sim_loss = NegativeCosineSimilarity()
+        self.sim_loss = nn.MSELoss()
         self.loss_embedding = torch.zeros((1, 2), requires_grad=True)
 
     @torch.no_grad()
@@ -72,7 +75,9 @@ class GIN(PreTrain):
         )
 
     def similarity_loss(self, pred_feat, orig_feat):
-        return self.sim_loss(pred_feat, orig_feat)
+        return F.mse_loss(
+            pred_feat.float(), orig_feat.float(), reduction="mean"
+        )
 
     def forward(self, data, use_mask=True):
         x, edge_index, edge_attr, importance = (

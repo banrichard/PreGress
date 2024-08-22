@@ -7,7 +7,7 @@ import os
 def dataset_load(name="ZINC", type="train"):
     if name == "ZINC":
         data = ZINC(root=os.path.join("/mnt/data/lujie/metacounting_dataset", name), split=type)
-    else:
+    elif name == "QM9":
         data = QM9(root=os.path.join("/mnt/data/lujie/metacounting_dataset", name))
     importance_cal(data)
     # transform the PyG data into networkX
@@ -47,6 +47,8 @@ def graph_to_file(graph, name, i):
                                                    node[1]['betweenness_centrality']))
         for edge in graph.edges(data=True):
             file.write("e,{},{},{}\n".format(edge[0], edge[1], edge[2]['edge_attr']))
+
+
 
 if __name__ == "__main__":
     dataset_load("QM9")

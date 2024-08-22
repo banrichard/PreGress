@@ -12,7 +12,9 @@ import torch
 import torch.nn.functional as F
 from torch.utils.tensorboard import SummaryWriter
 from data.data_load import dataset_load
+from model.graphconv import Graphormer
 from pretrain.GIN_pretrain import GIN
+from pretrain.graphormer_pretrain import Gphormer
 
 warnings.filterwarnings("ignore")
 torch.autograd.set_detect_anomaly(True)
@@ -52,7 +54,7 @@ train_config = {
     "attr_ratio": 0.5,
     "decay_patience": 20,
     "max_grad_norm": 8,
-    "model": "GIN",  # CNN, RNN, TXL, RGCN, RGIN, RSIN
+    "model": "GIN",  # Graphormer
     "emb_dim": 32,
     "activation_function": "relu",  # sigmoid, softmax, tanh, relu, leaky_relu, prelu, gelu
     # MeanAttnPredictNet, SumAttnPredictNet, MaxAttnPredictNet,
@@ -66,9 +68,11 @@ train_config = {
     "edgemean_graph_num_layers": 3,
     "edgemean_pattern_num_layers": 3,
     "edgemean_hidden_dim": 64,
-    "num_g_hid": 128,
-    "num_e_hid": 128,
-    "out_g_ch": 1,
+    "init_g_dim": 11,
+    "init_e_dim": 4,
+    "num_g_hid": 64,
+    "num_e_hid": 64,
+    "out_g_ch": 64,
     "graph_num_layers": 5,
     "queryset_dir": "queryset",
     "true_card_dir": "label",
@@ -77,7 +81,7 @@ train_config = {
     "dataset_name": "QM9",
     "save_res_dir": "result",
     "save_model_dir": "saved_model",
-    "init_g_dim": 11,
+
     "test_only": False,
 }
 
@@ -138,8 +142,12 @@ def train(
         batch = batch.cuda()
         batch.x = batch.x.to(torch.float32)
         s = time.time()
-        importance_loss, attr_loss = model(batch)
-        total_loss_per_step = importance_loss + attr_loss
+        if config['model'] == "Graphormer":
+            pred, importance_loss = model(batch)
+            total_loss_per_step = importance_loss
+        else:
+            importance_loss, attr_loss = model(batch)
+            total_loss_per_step = importance_loss + attr_loss
         with torch.autograd.detect_anomaly():
             total_loss_per_step.backward()
         bp_loss_item = total_loss_per_step.item()
@@ -213,8 +221,12 @@ def evaluate(model, data_type, data_loader, config, logger=None, writer=None):
             st = time.time()
             importance = batch.degree_centrality
             evaluate_results["mean"]["importance"].extend(importance.view(-1).tolist())
-            importance_loss, attr_loss = model(batch)
-            bp_loss = importance_loss + attr_loss
+            if config['model'] == "Graphormer":
+                pred, importance_loss = model(batch)
+                bp_loss = importance_loss
+            else:
+                importance_loss, attr_loss = model(batch)
+                bp_loss = importance_loss + attr_loss
             et = time.time()
             evaluate_results["time"]["total"] += et - st
             avg_t = et - st
@@ -259,7 +271,7 @@ def test(save_model_dir, test_loaders, config, logger, writer):
         torch.load(
             os.path.join(
                 save_model_dir,
-                "pretrained_{:s}.pt".format(config["model"]),
+                "best_epoch_{:s}.pt".format(train_config["model"]),
             )
         )
     )
@@ -367,6 +379,14 @@ if __name__ == "__main__":
             train_config["out_g_ch"],
             train_config["dropout"],
         )
+    elif train_config['model'] == "Graphormer":
+        model = Gphormer(train_config['graph_num_layers'],
+                           train_config["init_g_dim"],
+                           train_config["num_g_hid"],
+                           train_config['init_e_dim'],
+                           train_config['num_e_hid'],
+                           output_dim=train_config["out_g_ch"],
+                           pretrain=True)
     else:
         raise NotImplementedError(
             "Currently, the %s model is not supported" % (train_config["model"])
@@ -448,9 +468,9 @@ if __name__ == "__main__":
             #         best_reg_losses[key2] = cur_reg_loss[key1]
             #     best_reg_epochs['val'] = epoch
         err = best_bp_losses - mean_bp_loss
-        if err > 1e-4:
+        if err > 1e-3:
             tolerance_cnt = 0
-            best_reg_losses = mean_bp_loss
+            best_bp_losses = mean_bp_loss
             # best_reg_epochs["val"] = epoch
             logger.info(
                 "data_type: {:<5s}\t\tbest mean loss: {:.3f} (epoch: {:0>3d})".format(

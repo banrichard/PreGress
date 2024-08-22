@@ -1,4 +1,3 @@
-import functools
 import math
 import random
 import os
@@ -7,15 +6,20 @@ from tqdm import tqdm
 import numpy as np
 import torch
 import networkx as nx
-from torch_geometric.transforms import NormalizeFeatures
-from torch_geometric.utils import to_undirected, from_networkx
+from torch_geometric.utils import from_networkx
 from torch_geometric.data.batch import Batch
 from torch_geometric.loader import DataLoader
-from torch_geometric.loader.cluster import ClusterData
-from torch_geometric.data import Data
-from torch_geometric.datasets import QM9, Planetoid
-from torch_geometric.data import InMemoryDataset as IMD
+from torch_geometric.datasets import QM9
+from gensim.models import KeyedVectors
+from sklearn.preprocessing import MinMaxScaler
 import re
+
+
+def load_embeddings(embeddings_file):
+    # load embeddings from word2vec format file
+    model = KeyedVectors.load_word2vec_format(embeddings_file, binary=False)
+    features_matrix = np.asarray([model[str(node)] for node in range(len(model.index_to_key))])
+    return features_matrix
 
 
 def find_numbers_and_lists(string):
@@ -88,7 +92,6 @@ def meta_graph_load(file_name):
     file = open(file_name)
     nodes_list = []
     edges_list = []
-    degree_centrality_list = []
     if file_name.endswith("web-spam.txt"):
         next(file)
         for line in file:
@@ -113,16 +116,25 @@ def meta_graph_load(file_name):
                     edge_attr = 0
                 # edge_attr = tokens[2]  # tokens[3:]
                 edges_list.append([src, dst, {"edge_attr": edge_attr}])
-
+    file.close()
     graph = nx.Graph()
     graph.add_nodes_from(nodes_list)
     graph.add_edges_from(edges_list)
+    degree_centrality = nx.degree_centrality(graph)
+    betweenness_centrality = nx.betweenness_centrality(graph)
+    try:
+        eigenvector_centrality = nx.eigenvector_centrality(graph)
+    except nx.PowerIterationFailedConvergence:
+        eigenvector_centrality = -1
+    for i in range(len(graph.nodes)):
+        graph.nodes[i]['degree_centrality'] = degree_centrality[i]
+        graph.nodes[i]['betweenness_centrality'] = betweenness_centrality[i]
+        graph.nodes[i]['eigenvector_centrality'] = eigenvector_centrality[i] if type(
+            eigenvector_centrality) == dict else -1
+    return graph, np.array(degree_centrality), np.array(betweenness_centrality)
 
-    file.close()
-    return graph
 
-
-def load_queries(queryset_load_path, true_card_load_path, dataname="yeast"):
+def load_queries(queryset_load_path, true_card_load_path, dataname="yeast", submode=False):
     """
 
     :param queryset_load_path:  /mnt/8t_data/lujie/dataset/web-spam/query_graph/
@@ -151,32 +163,37 @@ def load_queries(queryset_load_path, true_card_load_path, dataname="yeast"):
                 continue
             # load the query /mnt/8t_data/lujie/dataset/yeast/query_graph/query_pattern_size_no.graph
             query_graph_to_be_load = os.path.join(queryset_load_path, query_name)
-            query = meta_graph_load(query_graph_to_be_load)
+            query, _, _ = meta_graph_load(query_graph_to_be_load)
             query_tensor = from_networkx(query, group_edge_attrs=['edge_attr'])
             if ground_truth >= upper_card or ground_truth < lower_card:
                 continue
             true_card = ground_truth + 1 if ground_truth == 0 else ground_truth
 
             all_queries[size].append((query_tensor, math.log2(true_card)))
-
             num_queries += 1
     else:
+        sign = 0
+        test_set = {}
         for subdir in os.listdir(queryset_load_path):
             subdir_path = os.path.join(queryset_load_path, subdir)
-            if os.path.isdir(subdir_path):
-                size = extract_size_from_directory_name(subdir)
-                if size is not None:
-                    all_queries[size] = []
-                    size_num += 1
             for filename in os.listdir(subdir_path):
                 file_path = os.path.join(subdir_path, filename)
+                size, orbit = extract_size_from_directory_name(file_path)
+                sign = size * 10 + orbit  # 5_3_1.txt -> 53, last number is an id and does not have any effect
+                if sign not in all_queries.keys():
+                    all_queries[sign] = []
+                    size_num += 1
                 pattern_set.add(file_path)
                 query = load_local_query(file_path)
                 query_tensor = from_networkx(query, group_node_attrs=['x'], group_edge_attrs=['edge_attr'])
                 true_card = read_ground_truth_from_file(os.path.join(true_card_load_path, subdir, filename))
-                all_queries[size].append((query_tensor, true_card))
+                all_queries[sign].append((query_tensor, true_card))
+                if submode and sign > 70:
+                    test_set[sign].append((query_tensor, true_card))
+                    all_queries.pop(sign)
                 num_queries += 1
-    return all_queries, num_queries, size_num, len(pattern_set)
+
+    return all_queries, num_queries, size_num, len(pattern_set), test_set
 
 
 def transform_query_to_tensors(all_subsets):
@@ -192,28 +209,32 @@ def transform_query_to_tensors(all_subsets):
 
 def meta_dataset_load(dataset_name):
     graph_path = os.path.join("/mnt", "8t_data", "banlujie", "dataset", dataset_name, dataset_name + ".pt")
-    if os.path.exists(graph_path):
-        graph = torch.load(graph_path)
-    else:
-        if dataset_name == "yeast":
-            org_graph = meta_graph_load(
-                os.path.join("/mnt", "8t_data", "banlujie", "dataset", dataset_name, "data_graph",
-                             dataset_name + ".graph"))
-            graph = from_networkx(org_graph, group_node_attrs=['x'],
-                                  group_edge_attrs=['edge_attr'])
-            graph.x = graph.x.repeat(graph.x.shape[0], 11)  # align with pretrained GNN
-            graph = Batch.from_data_list([graph])
-            torch.save(graph,
-                       os.path.join("/mnt", "8t_data", "banlujie", "dataset", dataset_name, dataset_name + ".pt"))
-        elif dataset_name == "web-spam":
-            org_graph = meta_graph_load(
-                os.path.join("/mnt", "8t_data", "banlujie", "dataset", dataset_name,
-                             dataset_name + ".txt"))
-            graph = from_networkx(org_graph)
-            graph.x = torch.zeros((graph.num_nodes, 11))  # align with pretrained GNN
-            graph = Batch.from_data_list([graph])
-            torch.save(graph,
-                       os.path.join("/mnt", "8t_data", "banlujie", "dataset", dataset_name, dataset_name + ".pt"))
+    # if os.path.exists(graph_path):
+    #     graph = torch.load(graph_path)
+    # else:
+    if dataset_name == "yeast":
+        org_graph, _, _ = meta_graph_load(
+            os.path.join("/mnt", "8t_data", "banlujie", "dataset", dataset_name, "data_graph",
+                         dataset_name + ".graph"))
+        graph = from_networkx(org_graph, group_node_attrs=['x'],
+                              group_edge_attrs=['edge_attr'])
+        graph.x = graph.x.repeat(graph.x.shape[0], 11)  # align with pretrained GNN
+        graph = Batch.from_data_list([graph])
+        torch.save(graph,
+                   os.path.join("/mnt", "8t_data", "banlujie", "dataset", dataset_name, dataset_name + ".pt"))
+    elif dataset_name == "web-spam":
+        org_graph, _, betweenness_centrality = meta_graph_load(
+            os.path.join("/mnt", "8t_data", "banlujie", "dataset", dataset_name,
+                         dataset_name + ".txt"))
+        node_fea_np = load_embeddings(os.path.join("/mnt", "8t_data", "banlujie", "dataset", "web-spam",
+                                                   "web-spam.emb"))  # align with pretrained GNN
+
+        graph = from_networkx(org_graph)
+        graph.x = torch.from_numpy(node_fea_np)
+        graph = Batch.from_data_list([graph])
+        graph.y = torch.tensor(betweenness_centrality).to(torch.float32)
+        torch.save(graph,
+                   os.path.join("/mnt", "8t_data", "banlujie", "dataset", dataset_name, dataset_name + ".pt"))
     return graph
 
 
@@ -236,10 +257,14 @@ def dataset_load(dataset_name, batch_size=256):
                 graphs.append(data)
             torch.save(graphs, os.path.join("/mnt", "data", "lujie", "metacounting_dataset", dataset_name,
                                             dataset_name + ".pt"))
-    trainsets, val_sets, test_sets = data_split(graphs, 0.8, 0.1)
-    train_loader = to_dataloader(trainsets, batch_size=batch_size)
-    val_loader = to_dataloader(val_sets, batch_size=batch_size)
-    test_loader = to_dataloader(test_sets, batch_size=batch_size)
+            trainsets, val_sets, test_sets = data_split(graphs, 0.8, 0.1)
+            train_loader = to_dataloader(trainsets, batch_size=batch_size)
+            val_loader = to_dataloader(val_sets, batch_size=batch_size)
+            test_loader = to_dataloader(test_sets, batch_size=batch_size)
+        elif dataset_name == "web-spam":
+            graph, importance, _ = meta_graph_load(
+                os.path.join("/mnt", "8t_data", "banlujie", "dataset", "web-spam", "web-spam.txt"))
+
     return train_loader, val_loader, test_loader
 
 
@@ -294,29 +319,19 @@ def load4graph(dataset_name, shot_num=10, num_parts=None):
 
         return input_dim, out_dim, train_data, test_dataset, val_dataset, graph_list
 
-    if dataset_name in ['PubMed', 'CiteSeer', 'Cora']:
-        dataset = Planetoid(root='data/Planetoid', name=dataset_name, transform=NormalizeFeatures())
-        data = dataset[0]
-        num_parts = 200
 
-        x = data.x.detach()
-        edge_index = data.edge_index
-        edge_index = to_undirected(edge_index)
-        data = Data(x=x, edge_index=edge_index)
-        input_dim = dataset.num_features
-        out_dim = dataset.num_classes
+def pretrain_motif_load(dataset_name):
+    query_graphs, num_queries, size_num, pattern_num, test_set = load_queries(
+        "/mnt/8t_data/banlujie/dataset/web-spam/query_graph",
+        "/mnt/8t_data/banlujie/dataset/web-spam/label", dataname="web-spam", submode=True)
 
-        dataset = list(ClusterData(data=data, num_parts=num_parts))
-        graph_list = dataset
-        # 这里的图没有标签
-
-        return input_dim, out_dim, None, None, None, graph_list
+    trainsets, val_sets, _ = data_split(query_graphs, 0.8, 0.1)
 
 
 def meta_motif_load(dataset_name, shot_num=5, task_pairs=None):
     if dataset_name in ['yeast']:
 
-        query_graphs, num_queries, size_num, pattern_num = load_queries(
+        query_graphs, num_queries, size_num, pattern_num, _ = load_queries(
             "/mnt/8t_data/banlujie/dataset/yeast/query_graph",
             "/mnt/8t_data/banlujie/dataset/yeast/yeast_ans.txt", dataname="web-spam")
         train_set, remaining_data = [], []
@@ -338,7 +353,7 @@ def meta_motif_load(dataset_name, shot_num=5, task_pairs=None):
             support = raw_meta_set2pyg(support, "train")
             query[0].x = query[0].x.reshape(-1, 1).to(torch.float32)
             query[0].edge_attr = query[0].edge_attr.to(torch.float32)
-            query[0].y = label
+            query[0].y = label.reshape(-1, 1)
             del label
             # pyg_dataset = Batch.from_data_list(data)
             # pyg_dataset.x = pyg_dataset.x.reshape(-1, 1)
@@ -346,7 +361,7 @@ def meta_motif_load(dataset_name, shot_num=5, task_pairs=None):
             i += 1
             yield task_1, task_2, support, query[0], len(task_pairs), query[0].y
     if dataset_name in ["web-spam"]:
-        query_graphs, num_queries, size_num, pattern_num = load_queries(
+        query_graphs, num_queries, size_num, pattern_num, _ = load_queries(
             "/mnt/8t_data/banlujie/dataset/web-spam/query_graph",
             "/mnt/8t_data/banlujie/dataset/web-spam/label", dataname="web-spam")
         train_set, remaining_data = [], []
@@ -368,7 +383,7 @@ def meta_motif_load(dataset_name, shot_num=5, task_pairs=None):
             support = raw_meta_set2pyg(support, "train")
             query[0].x = query[0].x.reshape(-1, 1).to(torch.float32)
             query[0].edge_attr = query[0].edge_attr.to(torch.float32)
-            query[0].y = label
+            query[0].y = label.reshape(-1, 1)
             del label
             # pyg_dataset = Batch.from_data_list(data)
             # pyg_dataset.x = pyg_dataset.x.reshape(-1, 1)
@@ -441,15 +456,18 @@ def read_ground_truth_from_file(file_path):
     ground_truths = []
     with open(file_path, 'r') as file:
         ground_truths = [int(line.strip()) for line in file.readlines()]
-        gt = [math.log2(i) if i > 0 else 0 for i in ground_truths]
-        ground_truths = torch.tensor(gt)
+        gt = np.array(ground_truths)
+        scaler = MinMaxScaler()
+        normalized_gt = scaler.fit_transform(gt.reshape(-1, 1))
+        ground_truths = torch.tensor(normalized_gt)
     return ground_truths
 
 
-def extract_size_from_directory_name(dir_name):
+def extract_size_from_directory_name(file_name):
     """Extracts the first number from the directory name."""
-    size = ''.join(filter(str.isdigit, dir_name))
-    return int(size) if size else None
+    file = os.path.basename(file_name)
+    size, orbit = int(file.split("_")[0]), int(file.split("_")[1])
+    return size, orbit
 
 
 if __name__ == "__main__":

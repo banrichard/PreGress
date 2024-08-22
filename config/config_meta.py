@@ -22,11 +22,11 @@ class MetaConfig(object):
         self.para_set = self.micro_pars()
 
     def macro_pars(self):
-        adapt_lr = 0.00001
-        meta_lr = 0.001
-        adapt_steps = 2
-        epoch = 200
-        adapt_steps_meta_test = 40
+        adapt_lr = 0.001
+        meta_lr = 0.0001
+        adapt_steps = 5
+        epoch = 120
+        adapt_steps_meta_test = 10
         K_shot = 10
         exp_type = defaultdict(dict)
 
@@ -45,8 +45,8 @@ class MetaConfig(object):
         # }
 
         exp_type['local'] = {
-            'meta_train_tasks': [5, 6],
-            'meta_test_tasks': [5, 6]
+            'meta_train_tasks': [50, 51, 52],
+            'meta_test_tasks': [53, 54]
         }
 
         return adapt_lr, meta_lr, adapt_steps, epoch, adapt_steps_meta_test, K_shot, exp_type
