@@ -76,9 +76,9 @@ train_config = {
     "graph_num_layers": 5,
     "queryset_dir": "queryset",
     "true_card_dir": "label",
-    "dataset": "QM9",
+    "dataset": "web-spam",
     "data_dir": "dataset",
-    "dataset_name": "QM9",
+    "dataset_name": "web-spam",
     "save_res_dir": "result",
     "save_model_dir": "saved_model",
 

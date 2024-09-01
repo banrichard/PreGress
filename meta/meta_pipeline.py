@@ -1,16 +1,14 @@
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 from torch import optim
-from torch_geometric.nn import GCNConv, global_mean_pool, GATConv, TransformerConv
 # from torch_geometric.utils import sort_edge_index, add_self_loops, to_undirected
-from meta.motifNN import MotifGNN
+from model.motifNN import MotifGNN
 from meta.maml_learner import MAML
 from model.graphconv import Backbone, Graphormer
 from torch_geometric.data import Batch
 
 
-def model_components(args, round=1, pre_train_path='', gnn_type='GIN', project_head_path=None,task='importance'):
+def model_components(args, round=1, pre_train_path='', gnn_type='GIN', project_head_path=None,task='counting'):
     if round == 1:
         if task == "counting":
             model = Pipeline(input_dim=11, layer_num=args.layer_num, pre_train_path="../saved_model/best_epoch_GIN.pt")

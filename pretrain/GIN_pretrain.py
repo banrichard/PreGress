@@ -84,7 +84,7 @@ class GIN(PreTrain):
             data.x,
             data.edge_index,
             data.edge_attr,
-            data.degree_centrality,
+            data.y_dc,
         )
         if use_mask:
             mask = make_mask(x)

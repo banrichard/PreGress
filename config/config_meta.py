@@ -16,10 +16,26 @@ class MetaConfig(object):
         self.para_set = None
         self.set_parameters()
         self.layer_num = 5
-
+        self.task = "importance"
     def set_parameters(self):
         self.adapt_lr, self.meta_lr, self.adapt_steps, self.epoch, self.adapt_steps_meta_test, self.K_shot, self.exp_type = self.macro_pars()
         self.para_set = self.micro_pars()
+
+    def imp_pars(self):
+        adapt_lr = 0.001
+        meta_lr = 0.0001
+        adapt_steps = 5
+        epoch = 120
+        adapt_steps_meta_test = 10
+        K_shot = 10
+        exp_type = defaultdict(dict)
+
+        exp_type['local'] = {
+            'meta_train_tasks': [50, 51, 52],
+            'meta_test_tasks': [53, 54]
+        }
+
+        return adapt_lr, meta_lr, adapt_steps, epoch, adapt_steps_meta_test, K_shot, exp_type
 
     def macro_pars(self):
         adapt_lr = 0.001
@@ -57,7 +73,7 @@ class MetaConfig(object):
         with_prompt = [False]
         meta_learning = [True]
         gnn_type = ['GIN']
-
+        task = ['importance']
         pre_epoch = None
 
         for para_list in product(pre_train_method, with_prompt, meta_learning, gnn_type):
@@ -80,7 +96,8 @@ class MetaConfig(object):
                     pre_epoch = 90
                 elif gnn_type == "GIN":
                     pre_epoch = 200
-                pre_train_path = "/home/banlujie/metaCounting/saved_model/best_epoch_{:s}.pt".format(gnn_type)
+                pre_train_path = "/home/banlujie/metaCounting/saved_model/best_epoch_{:s}_{:s}.pt".format(gnn_type,
+                                                                                                          task)
 
             para_set.add((pre_train_method, with_prompt, meta_learning, gnn_type, pre_train_path))
 

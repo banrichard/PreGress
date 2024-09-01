@@ -4,6 +4,27 @@ from torch_geometric.utils import subgraph
 from torch_geometric.data import Batch
 
 
+
+def k_hop_induced_subgraph(graph, node, k=2) -> nx.Graph:
+    queue = [(node, 0)]
+    node_set = set()
+    edge_set = set()
+    while queue:
+        current_node, distance = queue.pop(0)
+        node_set.add(current_node)
+        if distance >= k:
+            continue
+        for neighbor in graph.neighbors(current_node):
+            edge_set.add((current_node, neighbor))
+            queue.append((neighbor, distance + 1))
+    subgraph = nx.Graph()
+    subgraph.add_nodes_from(node_set)
+    subgraph.add_edges_from(edge_set)
+    for u, v in subgraph.edges():
+        subgraph[u][v]["edge_attr"] = graph[u][v]["edge_attr"]
+
+    return subgraph
+
 def k_hop_induced_subgraph_edge(graph, edge, k=1) -> nx.Graph:
     node_list = []
     edge_list = []

@@ -87,13 +87,18 @@ def meta_test_adam(
     return query_loss, query_preds
 
 
-def meta_train_maml(epoch, maml, lossfn, opt, dataname, adapt_steps, K_shot=10, meta_train_task_id_list=None,
-                    device="cpu"):
+def meta_train_maml(args, maml, lossfn, opt):
     # meta-training
+    epoch = args.epoch
+    device = args.device
+    adapt_steps = args.adapt_steps
+    dataname = args.dataname
     scheduler = ReduceLROnPlateau(opt, mode="min")
     writer = SummaryWriter()
     graph = meta_dataset_load(dataname)
+    meta_train_task_id_list = id_list_generate(graph, args.task)
     graph = graph.to(device)
+
     shuffle(meta_train_task_id_list)
     task_pairs = [(meta_train_task_id_list[i], meta_train_task_id_list[i + 1]) for i in
                   range(0, len(meta_train_task_id_list) - 1, 2)]
@@ -136,6 +141,23 @@ def meta_train_maml(epoch, maml, lossfn, opt, dataname, adapt_steps, K_shot=10, 
             scheduler.step(meta_train_loss)
 
 
+def id_list_generate(graph, task="importance"):
+    train_task_id_list = []
+    meta_test_task_id_list = []
+    # read single graph length
+    if task == "importance":
+        num_nodes = len(graph.x)
+        train_id = 0.8 * num_nodes
+        val_id = 0.8 * num_nodes
+        test_id = 0.1 * num_nodes
+
+        # train_sets = graphs[: int(num_instances * train_ratio)]
+        # # merge to all_train_sets
+        # val_sets = graphs[int(num_instances * train_ratio): int(num_instances * (train_ratio + val_ratio))]
+        # test_sets = graphs[int(num_instances * (train_ratio + val_ratio)):]
+    return train_task_id_list
+
+
 if __name__ == '__main__':
     from config.config_meta import MetaConfig
 
@@ -143,8 +165,12 @@ if __name__ == '__main__':
     args = MetaConfig()
     res_full = []
     res_per_source = []
-    meta_train_task_id_list = args.exp_type['local']['meta_train_tasks']
-    meta_test_task_id_list = args.exp_type['local']['meta_test_tasks']
+    # if args.task == "importance":
+    #     meta_train_task_id_list,meta_test_task_id_list = id_list_generate(args.dataname)
+    # else:
+    #     meta_train_task_id_list = args.exp_type['local']['meta_train_tasks']
+    #     meta_test_task_id_list = args.exp_type['local']['meta_test_tasks']
+
     for paras in args.para_set:
 
         pre_train_method, with_prompt, meta_learning, gnn_type, pre_train_path = paras
@@ -156,9 +182,8 @@ if __name__ == '__main__':
             # meta-training
             print("meta-training for {}.{}.{}.{}...".format(pre_train_method, with_prompt,
                                                             meta_learning, gnn_type))
-            meta_train_maml(args.epoch, maml, lossfn, opt,
-                            args.dataname, args.adapt_steps, K_shot=args.K_shot,
-                            meta_train_task_id_list=meta_train_task_id_list, device=args.device)
+            meta_train_maml(args, maml, lossfn, opt)
+            # meta_train_task_id_list=meta_train_task_id_list, )
 
             print("meta-test for {}.{}.{}.{}...".format(pre_train_method, with_prompt,
                                                         meta_learning, gnn_type))

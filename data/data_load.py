@@ -1,6 +1,7 @@
 import math
 import random
 import os
+import pickle
 
 from tqdm import tqdm
 import numpy as np
@@ -13,6 +14,8 @@ from torch_geometric.datasets import QM9
 from gensim.models import KeyedVectors
 from sklearn.preprocessing import MinMaxScaler
 import re
+
+from utils.extraction import k_hop_induced_subgraph
 
 
 def load_embeddings(embeddings_file):
@@ -92,7 +95,16 @@ def meta_graph_load(file_name):
     file = open(file_name)
     nodes_list = []
     edges_list = []
-    if file_name.endswith("web-spam.txt"):
+    if file_name.endswith("web-spam.txt") and os.path.exists(
+            os.path.join("/mnt", "8t_data", "banlujie", "dataset", "web-spam", 'web-spam.pickle')):
+        graph = pickle.load(
+            open(os.path.join("/mnt", "8t_data", "banlujie", "dataset", "web-spam", 'web-spam.pickle'), "rb"))
+        degree_centrality = np.array([graph.nodes[i]['degree_centrality'] for i in graph.nodes()])
+        eigenvector_centrality = np.array([graph.nodes[i]['eigenvector_centrality'] for i in graph.nodes()])
+        return graph, degree_centrality, eigenvector_centrality
+    elif file_name.endswith("web-spam.txt"):
+        node_fea_np = load_embeddings(os.path.join("/mnt", "8t_data", "banlujie", "dataset", "web-spam",
+                                                   "web-spam.emb"))  # align with pretrained GNN
         next(file)
         for line in file:
             tokens = line.strip().split(" ")
@@ -117,6 +129,7 @@ def meta_graph_load(file_name):
                 # edge_attr = tokens[2]  # tokens[3:]
                 edges_list.append([src, dst, {"edge_attr": edge_attr}])
     file.close()
+
     graph = nx.Graph()
     graph.add_nodes_from(nodes_list)
     graph.add_edges_from(edges_list)
@@ -127,11 +140,14 @@ def meta_graph_load(file_name):
     except nx.PowerIterationFailedConvergence:
         eigenvector_centrality = -1
     for i in range(len(graph.nodes)):
+        graph.nodes[i]['x'] = node_fea_np[i] if file_name.endswith("web-spam.txt") else 0
         graph.nodes[i]['degree_centrality'] = degree_centrality[i]
         graph.nodes[i]['betweenness_centrality'] = betweenness_centrality[i]
         graph.nodes[i]['eigenvector_centrality'] = eigenvector_centrality[i] if type(
             eigenvector_centrality) == dict else -1
-    return graph, np.array(degree_centrality), np.array(betweenness_centrality)
+    pickle.dump(graph,
+                open(os.path.join("/mnt", "8t_data", "banlujie", "dataset", "web-spam", 'web-spam.pickle'), 'wb'))
+    return graph, np.array(degree_centrality), np.array(eigenvector_centrality)
 
 
 def load_queries(queryset_load_path, true_card_load_path, dataname="yeast", submode=False):
@@ -223,7 +239,7 @@ def meta_dataset_load(dataset_name):
         torch.save(graph,
                    os.path.join("/mnt", "8t_data", "banlujie", "dataset", dataset_name, dataset_name + ".pt"))
     elif dataset_name == "web-spam":
-        org_graph, _, betweenness_centrality = meta_graph_load(
+        org_graph, _, centrality = meta_graph_load(
             os.path.join("/mnt", "8t_data", "banlujie", "dataset", dataset_name,
                          dataset_name + ".txt"))
         node_fea_np = load_embeddings(os.path.join("/mnt", "8t_data", "banlujie", "dataset", "web-spam",
@@ -232,10 +248,34 @@ def meta_dataset_load(dataset_name):
         graph = from_networkx(org_graph)
         graph.x = torch.from_numpy(node_fea_np)
         graph = Batch.from_data_list([graph])
-        graph.y = torch.tensor(betweenness_centrality).to(torch.float32)
+        graph.y = torch.tensor(centrality).to(torch.float32)
         torch.save(graph,
                    os.path.join("/mnt", "8t_data", "banlujie", "dataset", dataset_name, dataset_name + ".pt"))
     return graph
+
+
+def single_graph_loader(graph, batch_size=16):
+    subgraph_sets = subgraph_construction(graph)
+
+    trainsets, val_sets, test_sets = data_split(subgraph_sets, 0.8, 0.1)
+    train_loader = to_dataloader(trainsets, batch_size=batch_size)
+    val_loader = to_dataloader(val_sets, batch_size=batch_size)
+    test_loader = to_dataloader(test_sets, batch_size=batch_size)
+    return train_loader, val_loader, test_loader
+
+
+def subgraph_construction(graph):
+    subgraph_sets = []
+    for node in graph.nodes():
+        sub_graph = k_hop_induced_subgraph(graph, node)
+        if sub_graph.number_of_nodes() == 0:
+            continue
+        sub_graph = from_networkx(sub_graph)
+        # this importance is y (label for downstream)
+        sub_graph.y_dc = graph.nodes[node]['degree_centrality']
+        sub_graph.y_eigen = graph.nodes[node]['eigenvector_centrality']
+        subgraph_sets.append(sub_graph)
+    return subgraph_sets
 
 
 def dataset_load(dataset_name, batch_size=256):
@@ -262,9 +302,11 @@ def dataset_load(dataset_name, batch_size=256):
             val_loader = to_dataloader(val_sets, batch_size=batch_size)
             test_loader = to_dataloader(test_sets, batch_size=batch_size)
         elif dataset_name == "web-spam":
-            graph, importance, _ = meta_graph_load(
+            graph, importance, eigenvector_importance = meta_graph_load(
                 os.path.join("/mnt", "8t_data", "banlujie", "dataset", "web-spam", "web-spam.txt"))
-
+            # node_fea_np = load_embeddings(os.path.join("/mnt", "8t_data", "banlujie", "dataset", "web-spam",
+            #                                            "web-spam.emb"))  # align with pretrained GNN
+            train_loader, val_loader, test_loader = single_graph_loader(graph, batch_size=batch_size)
     return train_loader, val_loader, test_loader
 
 
@@ -320,11 +362,14 @@ def load4graph(dataset_name, shot_num=10, num_parts=None):
         return input_dim, out_dim, train_data, test_dataset, val_dataset, graph_list
 
 
-def pretrain_motif_load(dataset_name):
+def pretrain_data_load(dataset_name):
     query_graphs, num_queries, size_num, pattern_num, test_set = load_queries(
         "/mnt/8t_data/banlujie/dataset/web-spam/query_graph",
         "/mnt/8t_data/banlujie/dataset/web-spam/label", dataname="web-spam", submode=True)
-
+    graph, _ = single_graph_load(os.path.join("/mnt/8t_data/banlujie/dataset/", dataset_name, dataset_name + ".txt"))
+    subgraphs = subgraph_construction(graph)
+    for query in query_graphs:
+        label = query.y
     trainsets, val_sets, _ = data_split(query_graphs, 0.8, 0.1)
 
 
@@ -471,4 +516,4 @@ def extract_size_from_directory_name(file_name):
 
 
 if __name__ == "__main__":
-    load4graph("yeast")
+    dataset_load("web-spam")
