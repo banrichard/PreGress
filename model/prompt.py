@@ -3,6 +3,7 @@ from torch_geometric.nn.inits import glorot
 import torch
 import torch.nn.functional as F
 
+
 class SimplePrompt(nn.Module):
     def __init__(self, in_channels: int):
         super(SimplePrompt, self).__init__()
@@ -14,7 +15,8 @@ class SimplePrompt(nn.Module):
 
     def add(self, x: torch.Tensor):
         return x + self.global_emb
-    
+
+
 class GPFplusAtt(nn.Module):
     def __init__(self, in_channels: int, p_num: int):
         super(GPFplusAtt, self).__init__()

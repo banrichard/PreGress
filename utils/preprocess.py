@@ -1,4 +1,13 @@
 import os
+
+def get_backbone_name(file_path):
+    file_name = os.path.basename(file_path)  # Returns 'best_epoch_GIN.pt'
+
+    # Split the file name to isolate the backbone name
+    backbone_name = file_name.split('_')[-1].split('.')[0]  # Splits by '_' and then by '.'
+
+    return backbone_name # Output: 'GIN'
+
 def rename_files_with_labels(pattern_graph_dir, label_dir):
     # Extract the number of nodes from the pattern graph directory name
     directory_name = os.path.basename(pattern_graph_dir)

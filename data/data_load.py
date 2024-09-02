@@ -96,14 +96,14 @@ def meta_graph_load(file_name):
     nodes_list = []
     edges_list = []
     if file_name.endswith("web-spam.txt") and os.path.exists(
-            os.path.join("/mnt", "8t_data", "banlujie", "dataset", "web-spam", 'web-spam.pickle')):
+            os.path.join("/mnt", "data", "banlujie", "dataset", "web-spam", 'web-spam.pickle')):
         graph = pickle.load(
-            open(os.path.join("/mnt", "8t_data", "banlujie", "dataset", "web-spam", 'web-spam.pickle'), "rb"))
+            open(os.path.join("/mnt", "data", "banlujie", "dataset", "web-spam", 'web-spam.pickle'), "rb"))
         degree_centrality = np.array([graph.nodes[i]['degree_centrality'] for i in graph.nodes()])
         eigenvector_centrality = np.array([graph.nodes[i]['eigenvector_centrality'] for i in graph.nodes()])
         return graph, degree_centrality, eigenvector_centrality
     elif file_name.endswith("web-spam.txt"):
-        node_fea_np = load_embeddings(os.path.join("/mnt", "8t_data", "banlujie", "dataset", "web-spam",
+        node_fea_np = load_embeddings(os.path.join("/mnt", "data", "banlujie", "dataset", "web-spam",
                                                    "web-spam.emb"))  # align with pretrained GNN
         next(file)
         for line in file:
@@ -237,12 +237,12 @@ def meta_dataset_load(dataset_name):
         graph.x = graph.x.repeat(graph.x.shape[0], 11)  # align with pretrained GNN
         graph = Batch.from_data_list([graph])
         torch.save(graph,
-                   os.path.join("/mnt", "8t_data", "banlujie", "dataset", dataset_name, dataset_name + ".pt"))
+                   os.path.join("/mnt", "data", "banlujie", "dataset", dataset_name, dataset_name + ".pt"))
     elif dataset_name == "web-spam":
         org_graph, _, centrality = meta_graph_load(
-            os.path.join("/mnt", "8t_data", "banlujie", "dataset", dataset_name,
+            os.path.join("/mnt", "data", "banlujie", "dataset", dataset_name,
                          dataset_name + ".txt"))
-        node_fea_np = load_embeddings(os.path.join("/mnt", "8t_data", "banlujie", "dataset", "web-spam",
+        node_fea_np = load_embeddings(os.path.join("/mnt", "data", "banlujie", "dataset", "web-spam",
                                                    "web-spam.emb"))  # align with pretrained GNN
 
         graph = from_networkx(org_graph)
@@ -250,42 +250,48 @@ def meta_dataset_load(dataset_name):
         graph = Batch.from_data_list([graph])
         graph.y = torch.tensor(centrality).to(torch.float32)
         torch.save(graph,
-                   os.path.join("/mnt", "8t_data", "banlujie", "dataset", dataset_name, dataset_name + ".pt"))
+                   os.path.join("/mnt", "data", "banlujie", "dataset", dataset_name, dataset_name + ".pt"))
     return graph
 
 
-def single_graph_loader(graph, batch_size=16):
-    subgraph_sets = subgraph_construction(graph)
-
-    trainsets, val_sets, test_sets = data_split(subgraph_sets, 0.8, 0.1)
+def single_graph_loader(graph, data_file, batch_size=16, train_ratio=0.8, val_ratio=0.1):
+    subgraph_sets = subgraph_construction(graph, data_file)
+    trainsets, val_sets, test_sets = data_split(subgraph_sets, train_ratio, val_ratio)
     train_loader = to_dataloader(trainsets, batch_size=batch_size)
     val_loader = to_dataloader(val_sets, batch_size=batch_size)
     test_loader = to_dataloader(test_sets, batch_size=batch_size)
     return train_loader, val_loader, test_loader
 
 
-def subgraph_construction(graph):
-    subgraph_sets = []
-    for node in graph.nodes():
-        sub_graph = k_hop_induced_subgraph(graph, node)
-        if sub_graph.number_of_nodes() == 0:
-            continue
-        sub_graph = from_networkx(sub_graph)
-        # this importance is y (label for downstream)
-        sub_graph.y_dc = graph.nodes[node]['degree_centrality']
-        sub_graph.y_eigen = graph.nodes[node]['eigenvector_centrality']
-        subgraph_sets.append(sub_graph)
+def subgraph_construction(graph, data_file):
+    if os.path.exists(os.path.dirname(data_file) + "/subgraph.pt"):
+        subgraph_sets = torch.load(os.path.dirname(data_file) + "/subgraph.pt")
+    else:
+        subgraph_sets = []
+        num_nodes = graph.number_of_nodes()
+        for node in graph.nodes():
+            sub_graph = k_hop_induced_subgraph(graph, node)
+            if sub_graph.number_of_nodes() == 0:
+                continue
+            sub_graph = from_networkx(sub_graph, group_node_attrs=['x'])
+            # this importance is y (label for downstream)
+            sub_graph.y_dc = graph.nodes[node]['degree_centrality']
+            sub_graph.y_eigen = graph.nodes[node]['eigenvector_centrality']
+            subgraph_sets.append(sub_graph)
+        torch.save(subgraph_sets, os.path.dirname(data_file) + "/subgraph.pt")
     return subgraph_sets
 
 
 def dataset_load(dataset_name, batch_size=256):
+    train_loader, val_loader, test_loader = [], [], []
+
     if os.path.exists(
-            os.path.join("/mnt", "data", "lujie", "metacounting_dataset", dataset_name, dataset_name + ".pt")):
+            os.path.join("/mnt", "data", "banlujie", "dataset", dataset_name, dataset_name + ".pt")):
         graphs = torch.load(
-            os.path.join("/mnt", "data", "lujie", "metacounting_dataset", dataset_name, dataset_name + ".pt"))
+            os.path.join("/mnt", "data", "banlujie", "dataset", dataset_name, dataset_name + ".pt"))
     else:
         if dataset_name == "QM9":
-            data_dir = "/mnt/data/lujie/metacounting_dataset/QM9/networkx"
+            data_dir = "/mnt/data/banlujie/dataset/QM9/networkx"
             graphs = []
             pbar = tqdm(os.listdir(data_dir))
             for file in pbar:
@@ -295,18 +301,31 @@ def dataset_load(dataset_name, batch_size=256):
                                      group_edge_attrs=['edge_attr'])
                 data.degree_centrality = torch.tensor(degree_centrality).reshape(-1, 1)
                 graphs.append(data)
-            torch.save(graphs, os.path.join("/mnt", "data", "lujie", "metacounting_dataset", dataset_name,
+            torch.save(graphs, os.path.join("/mnt", "data", "banlujie", "dataset", dataset_name,
                                             dataset_name + ".pt"))
             trainsets, val_sets, test_sets = data_split(graphs, 0.8, 0.1)
             train_loader = to_dataloader(trainsets, batch_size=batch_size)
             val_loader = to_dataloader(val_sets, batch_size=batch_size)
             test_loader = to_dataloader(test_sets, batch_size=batch_size)
         elif dataset_name == "web-spam":
+            data_file = os.path.join("/mnt", "data", "banlujie", "dataset", "web-spam", "web-spam.txt")
             graph, importance, eigenvector_importance = meta_graph_load(
-                os.path.join("/mnt", "8t_data", "banlujie", "dataset", "web-spam", "web-spam.txt"))
+                data_file)
             # node_fea_np = load_embeddings(os.path.join("/mnt", "8t_data", "banlujie", "dataset", "web-spam",
             #                                            "web-spam.emb"))  # align with pretrained GNN
-            train_loader, val_loader, test_loader = single_graph_loader(graph, batch_size=batch_size)
+            train_loader, val_loader, test_loader = single_graph_loader(graph, data_file, batch_size=batch_size)
+    return train_loader, val_loader, test_loader
+
+
+def importance_graph_load(dataset_name, batch_size=16, task="importance", train_ratio=0.8, val_ratio=0.1):
+    if dataset_name == "web-spam":
+        data_file = os.path.join("/mnt", "data", "banlujie", "dataset", "web-spam", "web-spam.txt")
+        graph, importance, eigenvector_importance = meta_graph_load(
+            data_file)
+        # node_fea_np = load_embeddings(os.path.join("/mnt", "8t_data", "banlujie", "dataset", "web-spam",
+        #                                            "web-spam.emb"))  # align with pretrained GNN
+        train_loader, val_loader, test_loader = single_graph_loader(graph, data_file, batch_size=batch_size,
+                                                                    train_ratio=train_ratio, val_ratio=val_ratio)
     return train_loader, val_loader, test_loader
 
 

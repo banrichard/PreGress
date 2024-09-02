@@ -1,15 +1,14 @@
 import torch.nn as nn
 import torch
 from torch.nn.init import trunc_normal_
+from torch_geometric.nn import global_mean_pool
+
 from pretrain.matcher import Matcher
 from utils.mask import make_mask
 from pretrain.base import PreTrain
 from model.mlp import Mlp
 from model.attention import TransformerRegressor
 import torch.nn.functional as F
-from lightly.loss import NegativeCosineSimilarity
-
-
 
 
 class GIN(PreTrain):
@@ -25,7 +24,7 @@ class GIN(PreTrain):
         self.projection_head = nn.Sequential(
             nn.Linear(hid_dim + 2, hid_dim),
             nn.ReLU(inplace=True),
-            nn.Linear(hid_dim, output_dim),
+            nn.Linear(hid_dim, 1),
         )
         # from iclr20
         self.pos_decoder = nn.Linear(self.hid_dim + 2, self.hid_dim + 2)
@@ -51,24 +50,6 @@ class GIN(PreTrain):
             drop_path_rate=0.1,
         )
 
-    def build_masked_decoder(self):
-        if self.mask_ratio > 0.0:
-            self.mask_token = nn.Parameter(torch.zeros(1, 1, self.embed_dim))
-            self.decoder_pos_embed = nn.Sequential(
-                nn.Linear(3, 128), nn.GELU(), nn.Linear(128, self.embed_dim)
-            )
-            dpr = [
-                x.item()
-                for x in torch.linspace(0, self.drop_path_rate, self.decoder_depth)
-            ]
-            self.RAE_decoder = Mlp(
-                in_features=self.output_dim, out_features=self.output_dim
-            )
-            trunc_normal_(self.mask_token, std=0.02)
-        else:
-            self.mask_token = None
-            self.RAE_decoder = None
-
     def importance_loss(self, pred_importance, target_importance):
         return F.mse_loss(
             pred_importance.float(), target_importance.float(), reduction="mean"
@@ -80,12 +61,14 @@ class GIN(PreTrain):
         )
 
     def forward(self, data, use_mask=True):
-        x, edge_index, edge_attr, importance = (
+        x, edge_index, edge_attr, importance, batch = (
             data.x,
             data.edge_index,
             data.edge_attr,
             data.y_dc,
+            data.batch
         )
+        batch = batch.to(x.device)
         if use_mask:
             mask = make_mask(x)
         else:
@@ -94,8 +77,9 @@ class GIN(PreTrain):
         pred = self.gnn(x, edge_index, edge_attr)
         loss_embedding = self.loss_embedding.repeat(pred.shape[0], 1)
         pred_concated = torch.concat([pred, loss_embedding.to(pred.device)], dim=1)
-        pred_importance = self.projection_head(pred_concated)
-        importance_loss = self.importance_loss(pred_importance, importance)
+        pred_pooled = global_mean_pool(pred_concated, batch)
+        pred_importance = self.projection_head(pred_pooled)
+        importance_loss = self.importance_loss(pred_importance.squeeze(), importance)
 
         if mask is not None:
             pos_emd_vis = self.pos_decoder(pred_concated[mask])

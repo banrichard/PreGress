@@ -58,6 +58,7 @@ class Backbone(nn.Module):
             if i < self.num_layers - 1:
                 x = F.dropout(x, p=self.dropout, training=self.training)
                 x = self.pair_norm(x)
+        # x = global_mean_pool(x, batch)
         return x
 
 
@@ -171,5 +172,5 @@ class Graphormer(nn.Module):
 
         # 全局平均池化,因为encoder的输出是节点的特征,需要将其池化为图的特征
         if not self.pretrain:
-          x = global_mean_pool(x, batch)
+            x = global_mean_pool(x, batch)
         return x

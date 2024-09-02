@@ -10,8 +10,11 @@ import warnings
 import numpy as np
 import torch
 import torch.nn.functional as F
+from torch import optim
+from torch.nn.functional import huber_loss
 from torch.utils.tensorboard import SummaryWriter
-from data.data_load import dataset_load
+from data.data_load import dataset_load, importance_graph_load
+from non_meta.model_construction import ImportancePipeline
 from pretrain.GIN_pretrain import GIN
 from pretrain.graphormer_pretrain import Gphormer
 
@@ -19,7 +22,7 @@ warnings.filterwarnings("ignore")
 torch.autograd.set_detect_anomaly(True)
 INF = float("inf")
 
-train_config = {
+finetune_config = {
     "base": 2,
     "cuda": True,
     "gpu_id": 2,
@@ -39,7 +42,7 @@ train_config = {
     "bp_loss_slp": "anneal_cosine$1.0$0.01",  # 0, 0.01, logistic$1.0$0.01, linear$1.0$0.01, cosine$1.0$0.01,
     # cyclical_logistic$1.0$0.01, cyclical_linear$1.0$0.01, cyclical_cosine$1.0$0.01
     # anneal_logistic$1.0$0.01, anneal_linear$1.0$0.01, anneal_cosine$1.0$0.01
-    "lr": 0.0006,
+    "lr": 0.00001,
     "weight_decay": 0.0005,
     "weight_decay_var": 0.1,
     "weight_decay_film": 0.0001,
@@ -74,9 +77,13 @@ train_config = {
     "dataset_name": "web-spam",
     "save_res_dir": "result",
     "save_model_dir": "saved_model",
-
+    "task": "importance",
     "test_only": False,
 }
+
+
+def minmax(tensor):
+    return (tensor - tensor.min()) / (tensor.max() - tensor.min())
 
 
 def train(
@@ -123,7 +130,7 @@ def train(
                 os.path.join(
                     save_model_dir,
                     "best_epoch_{:s}_{:s}.pt".format(
-                        train_config["predict_net"], train_config["graph_net"]
+                        finetune_config["predict_net"], finetune_config["graph_net"]
                     ),
                 )
             )
@@ -135,15 +142,16 @@ def train(
     for i, batch in enumerate(data_loader):
         batch = batch.to(device)
         batch.x = batch.x.to(torch.float32)
+        batch.y_eigen = minmax(batch.y_eigen)
         s = time.time()
         if config['model'] == "Graphormer":
             pred, importance_loss = model(batch)
             total_loss_per_step = importance_loss
         else:
-            importance_loss, attr_loss = model(batch)
-            total_loss_per_step = importance_loss + attr_loss
-            total_loss_per_step.backward()
-        bp_loss_item = total_loss_per_step.item()
+            pred = model(batch)
+            importance_loss = bp_crit(pred, batch.y_eigen)
+            importance_loss.backward()
+        bp_loss_item = importance_loss.item()
         total_bp_loss += bp_loss_item
 
         if writer:
@@ -202,24 +210,28 @@ def evaluate(model, data_type, data_loader, config, logger=None, writer=None):
     total_bp_loss = 0
     total_cnt = 1e-6
 
-    evaluate_results = {"mean": {"importance": list()},
+    evaluate_results = {"mean": {"importance": list(), "preds": list()},
                         "error": {"importance_loss": list(), "attr_loss": list()},
                         "time": {"avg": list(), "total": 0.0}}
     model.eval()
     model = model.to("cpu")
     total_time = 0
+    preds = []
     with torch.no_grad():
         for batch_id, batch in enumerate(data_loader):
             batch.x = batch.x.to(torch.float32)
             st = time.time()
-            importance = batch.y_dc
+            importance = batch.y_eigen
+            importance = minmax(importance)
             evaluate_results["mean"]["importance"].extend(importance.view(-1).tolist())
             if config['model'] == "Graphormer":
                 pred, importance_loss = model(batch)
                 bp_loss = importance_loss
             else:
-                importance_loss, attr_loss = model(batch)
-                bp_loss = importance_loss + attr_loss
+                pred = model(batch)
+                evaluate_results["mean"]["preds"].extend(pred.view(-1).tolist())
+                importance_loss = huber_loss(pred, importance)
+                bp_loss = importance_loss
             et = time.time()
             evaluate_results["time"]["total"] += et - st
             avg_t = et - st
@@ -228,7 +240,6 @@ def evaluate(model, data_type, data_loader, config, logger=None, writer=None):
             bp_loss_item = bp_loss.mean().item()
             total_bp_loss += bp_loss_item
             evaluate_results["error"]["importance_loss"].extend(importance_loss.view(-1).tolist())
-            evaluate_results["error"]["attr_loss"].extend(attr_loss.view(-1).tolist())
             et = time.time()
             total_time += et - st
             total_cnt += 1
@@ -264,7 +275,7 @@ def test(save_model_dir, test_loaders, config, logger, writer):
         torch.load(
             os.path.join(
                 save_model_dir,
-                "best_epoch_{:s}.pt".format(train_config["model"]),
+                "best_epoch_{:s}.pt".format(finetune_config["model"]),
             )
         )
     )
@@ -289,9 +300,9 @@ def test(save_model_dir, test_loaders, config, logger, writer):
                 save_model_dir,
                 "%s_%s_%s_pre_trained.json"
                 % (
-                        train_config["model"],
+                        finetune_config["model"],
                         "best_test",
-                        train_config["dataset"],
+                        finetune_config["dataset"],
                 ),
             ),
             "w",
@@ -311,25 +322,25 @@ if __name__ == "__main__":
 
         if arg.startswith("--"):
             arg = arg[2:]
-        if arg not in train_config:
+        if arg not in finetune_config:
             print("Warning: %s is not surported now." % (arg))
             continue
-        train_config[arg] = value
+        finetune_config[arg] = value
         try:
             value = eval(value)
             if isinstance(value, (int, float)):
-                train_config[arg] = value
+                finetune_config[arg] = value
         except:
             pass
 
     ts = datetime.datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
-    model_name = "%s_%s" % (train_config["model"], ts)
-    save_model_dir = train_config["save_model_dir"]
+    model_name = "%s_%s" % (finetune_config["model"], ts)
+    save_model_dir = finetune_config["save_model_dir"]
     os.makedirs(save_model_dir, exist_ok=True)
 
     # save config
     with open(os.path.join(save_model_dir, "train_config.json"), "w") as f:
-        json.dump(train_config, f)
+        json.dump(finetune_config, f)
 
     # set logger
     logger = logging.getLogger()
@@ -349,40 +360,39 @@ if __name__ == "__main__":
 
     # set device
     device = torch.device(
-        "cuda:%d" % train_config["gpu_id"] if (train_config["gpu_id"] != -1 and train_config["cuda"] == True) else "cpu"
+        "cuda:%d" % finetune_config["gpu_id"] if (
+                finetune_config["gpu_id"] != -1 and finetune_config["cuda"] == True) else "cpu"
     )
-    if train_config["gpu_id"] != -1 and train_config["cuda"] == True:
+    if finetune_config["gpu_id"] != -1 and finetune_config["cuda"] == True:
         torch.cuda.set_device(device)
 
         # load data
         # os.makedirs(train_config["save_data_dir"], exist_ok=True)
     # decompose the query
-    train_loader, val_loader, test_loader = dataset_load(
-        train_config['dataset'], batch_size=train_config["batch_size"]
+    train_loader, val_loader, test_loader = importance_graph_load(
+        finetune_config['dataset'], batch_size=finetune_config["batch_size"],train_ratio=0.8,val_ratio=0.1
     )
     # config['init_g_dim'] = graph.x.size(1)
     # train_config.update({'init_g_dim': graph.x.size(1)})
     # construct the model
-    train_config["init_g_dim"] = next(iter(train_loader)).x.shape[1]
-    if train_config["model"] == "GIN":
-        model = GIN(
-            train_config["graph_num_layers"],
-            train_config["init_g_dim"],
-            train_config["num_g_hid"],
-            train_config["out_g_ch"],
-            train_config["dropout"],
+    finetune_config["init_g_dim"] = next(iter(train_loader)).x.shape[1]
+    if finetune_config["task"] == "importance":
+        model = ImportancePipeline(
+            input_dim=finetune_config["init_g_dim"], layer_num=finetune_config['graph_num_layers'],
+            pre_train_path=os.path.join("..", finetune_config['save_model_dir'],
+                                        "best_epoch_" + finetune_config['model'] + ".pt")
         )
-    elif train_config['model'] == "Graphormer":
-        model = Gphormer(train_config['graph_num_layers'],
-                         train_config["init_g_dim"],
-                         train_config["num_g_hid"],
-                         train_config['init_e_dim'],
-                         train_config['num_e_hid'],
-                         output_dim=train_config["out_g_ch"],
+    elif finetune_config['task'] == "localcounting":
+        model = Gphormer(finetune_config['graph_num_layers'],
+                         finetune_config["init_g_dim"],
+                         finetune_config["num_g_hid"],
+                         finetune_config['init_e_dim'],
+                         finetune_config['num_e_hid'],
+                         output_dim=finetune_config["out_g_ch"],
                          pretrain=True)
     else:
         raise NotImplementedError(
-            "Currently, the %s model is not supported" % (train_config["model"])
+            "Currently, the %s model is not supported" % (finetune_config["model"])
         )
     # model = torch.compile(model)
     logger.info(model)
@@ -393,15 +403,10 @@ if __name__ == "__main__":
 
     # optimizer and losses
     writer = SummaryWriter()
-    optimizer = torch.optim.Adam(
-        model.parameters(),
-        lr=train_config["lr"],
-        weight_decay=train_config["weight_decay"],
-        eps=1e-6,
-    )
+    optimizer = optim.Adam(filter(lambda p: p.requires_grad, model.parameters()), finetune_config['lr'])
     optimizer.zero_grad()
     scheduler = torch.optim.lr_scheduler.ExponentialLR(
-        optimizer, gamma=train_config["decay_factor"]
+        optimizer, gamma=finetune_config["decay_factor"]
     )
     best_bp_losses = INF
     best_bp_epochs = {"train": -1, "val": -1, "test": -1}
@@ -410,13 +415,13 @@ if __name__ == "__main__":
     total_dev_time = 0
     total_test_time = 0
     cur_reg_loss = {}
-    if train_config["test_only"]:
+    if finetune_config["test_only"]:
         evaluate_results, total_test_time = test(
-            save_model_dir, test_loader, train_config, logger, writer
+            save_model_dir, test_loader, finetune_config, logger, writer
         )
         exit(0)
     tolerance_cnt = 0
-    for epoch in range(train_config["epochs"]):
+    for epoch in range(finetune_config["epochs"]):
         # if train_config['cv'] == True:
         #     cross_validate(model=model, query_set=QS, device=device, config=train_config, graph=graph, logger=logger,
         #                    writer=writer)
@@ -428,27 +433,27 @@ if __name__ == "__main__":
             data_type="train",
             data_loader=train_loader,
             device=device,
-            config=train_config,
+            config=finetune_config,
             epoch=epoch,
             logger=logger,
             writer=writer,
             bottleneck=False,
         )
         total_train_time += _time
-        if scheduler and (epoch + 1) % train_config["decay_patience"] == 0:
+        if scheduler and (epoch + 1) % finetune_config["decay_patience"] == 0:
             scheduler.step()
             # torch.save(model.state_dict(), os.path.join(save_model_dir, 'epoch%d.pt' % (epoch)))
         mean_bp_loss, evaluate_results, total_time = evaluate(
             model=model,
             data_type="val",
             data_loader=val_loader,
-            config=train_config,
+            config=finetune_config,
             logger=logger,
             writer=writer,
         )
         if writer:
             writer.add_scalar(
-                "%s/BP-%s-epoch" % ("val", train_config["bp_loss"]), mean_bp_loss, epoch
+                "%s/BP-%s-epoch" % ("val", finetune_config["bp_loss"]), mean_bp_loss, epoch
             )
             total_dev_time += total_time
             # cur_reg_loss[loader_idx] = mean_reg_loss
@@ -461,7 +466,7 @@ if __name__ == "__main__":
             #         best_reg_losses[key2] = cur_reg_loss[key1]
             #     best_reg_epochs['val'] = epoch
         err = best_bp_losses - mean_bp_loss
-        if err > 1e-4:
+        if err > 1e-5:
             tolerance_cnt = 0
             best_bp_losses = mean_bp_loss
             # best_reg_epochs["val"] = epoch
@@ -474,7 +479,7 @@ if __name__ == "__main__":
                 model.state_dict(),
                 os.path.join(
                     save_model_dir,
-                    "best_epoch_{:s}.pt".format(train_config["model"]),
+                    "best_epoch_{:s}.pt".format(finetune_config["model"]),
                 ),
             )
             with open(
@@ -491,12 +496,12 @@ if __name__ == "__main__":
             break
     print("data finish")
     evaluate_results, total_test_time = test(
-        save_model_dir, test_loader, train_config, logger, writer
+        save_model_dir, test_loader, finetune_config, logger, writer
     )
     logger.info(
         "train time: {:.3f}, train time per epoch :{:.3f}, test time: {:.3f}, all time: {:.3f}".format(
             total_train_time,
-            total_train_time / train_config["epochs"],
+            total_train_time / finetune_config["epochs"],
             total_test_time,
             total_train_time + total_dev_time + total_test_time,
         )
