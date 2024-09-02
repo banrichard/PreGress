@@ -12,7 +12,7 @@ import torch.nn.functional as F
 
 
 class GIN(PreTrain):
-    def __init__(self, num_layer, input_dim, hid_dim, output_dim, dropout):
+    def __init__(self, num_layer=5, input_dim=11, hid_dim=32, output_dim=16, dropout=0.2):
         super().__init__("GIN", dropout=dropout)
         self.num_layer = num_layer
         self.input_dim = input_dim

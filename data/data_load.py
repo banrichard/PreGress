@@ -3,6 +3,7 @@ import random
 import os
 import pickle
 
+from torch.utils.data import random_split
 from tqdm import tqdm
 import numpy as np
 import torch
@@ -15,6 +16,8 @@ from gensim.models import KeyedVectors
 from sklearn.preprocessing import MinMaxScaler
 import re
 
+from data.motif_dataset import MotifDataset, RandomBatchSampler
+from main_pretrain import train
 from utils.extraction import k_hop_induced_subgraph
 
 
@@ -329,6 +332,33 @@ def importance_graph_load(dataset_name, batch_size=16, task="importance", train_
     return train_loader, val_loader, test_loader
 
 
+def graph_with_motif_loader(query_graphs, subgraph_sets, batch_size, train_ratio, val_ratio):
+    train_loader, val_loader, test_loader = [], [], []
+    # extract all the motifs: (motif,label)
+    queries = list(query_graphs.values())
+
+    return train_loader, val_loader, test_loader
+
+
+def counting_graph_load(dataset_name, batch_size=16, task="localcounting", train_ratio=0.8, val_ratio=0.1):
+    if dataset_name == "web-spam":
+        data_file = os.path.join("/mnt", "data", "banlujie", "dataset", "web-spam", "web-spam.txt")
+        graph, _, _ = meta_graph_load(data_file)
+        query_graphs, num_queries, size_num, pattern_num, _ = load_queries(
+            "/mnt/8t_data/banlujie/dataset/web-spam/query_graph",
+            "/mnt/8t_data/banlujie/dataset/web-spam/label", dataname="web-spam", submode=False)
+        subgraph_sets = subgraph_construction(graph, data_file)
+        dataset = MotifDataset(query_graphs, subgraph_sets, dataset_name)
+        train_size = int(train_ratio * len(dataset))  # 70% for training
+        val_size = int(val_ratio * len(dataset))  # 15% for validation
+        test_size = len(dataset) - train_size - val_size  # 15% for testing
+        train_dataset, val_dataset, test_dataset = random_split(dataset, [train_size, val_size, test_size])
+        train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+        val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
+        test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
+    return train_loader, val_loader, test_loader
+
+
 def to_dataloader(dataset, batch_size=1, shuffle=True, num_workers=16):
     return DataLoader(dataset, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers)
 
@@ -379,17 +409,6 @@ def load4graph(dataset_name, shot_num=10, num_parts=None):
         out_dim = dataset.num_classes
 
         return input_dim, out_dim, train_data, test_dataset, val_dataset, graph_list
-
-
-def pretrain_data_load(dataset_name):
-    query_graphs, num_queries, size_num, pattern_num, test_set = load_queries(
-        "/mnt/8t_data/banlujie/dataset/web-spam/query_graph",
-        "/mnt/8t_data/banlujie/dataset/web-spam/label", dataname="web-spam", submode=True)
-    graph, _ = single_graph_load(os.path.join("/mnt/8t_data/banlujie/dataset/", dataset_name, dataset_name + ".txt"))
-    subgraphs = subgraph_construction(graph)
-    for query in query_graphs:
-        label = query.y
-    trainsets, val_sets, _ = data_split(query_graphs, 0.8, 0.1)
 
 
 def meta_motif_load(dataset_name, shot_num=5, task_pairs=None):

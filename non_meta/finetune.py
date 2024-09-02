@@ -13,8 +13,8 @@ import torch.nn.functional as F
 from torch import optim
 from torch.nn.functional import huber_loss
 from torch.utils.tensorboard import SummaryWriter
-from data.data_load import dataset_load, importance_graph_load
-from non_meta.model_construction import ImportancePipeline
+from data.data_load import dataset_load, importance_graph_load, counting_graph_load
+from non_meta.model_construction import ImportancePipeline, Pipeline
 from pretrain.GIN_pretrain import GIN
 from pretrain.graphormer_pretrain import Gphormer
 
@@ -28,7 +28,7 @@ finetune_config = {
     "gpu_id": 2,
     "num_workers": 16,
     "epochs": 200,
-    "batch_size": 16,
+    "batch_size": 64,
     "update_every": 1,  # actual batch_sizer = batch_size * update_every
     "print_every": 10,
     "init_emb": True,  # None, Normal
@@ -42,7 +42,7 @@ finetune_config = {
     "bp_loss_slp": "anneal_cosine$1.0$0.01",  # 0, 0.01, logistic$1.0$0.01, linear$1.0$0.01, cosine$1.0$0.01,
     # cyclical_logistic$1.0$0.01, cyclical_linear$1.0$0.01, cyclical_cosine$1.0$0.01
     # anneal_logistic$1.0$0.01, anneal_linear$1.0$0.01, anneal_cosine$1.0$0.01
-    "lr": 0.00001,
+    "lr": 0.0005,
     "weight_decay": 0.0005,
     "weight_decay_var": 0.1,
     "weight_decay_film": 0.0001,
@@ -121,7 +121,7 @@ def train(
     elif config["bp_loss"] == "SMSE":
         bp_crit = lambda pred, target: F.smooth_l1_loss(pred, target)
     elif config["bp_loss"] == "HUBER":
-        bp_crit = lambda pred, target: F.huber_loss(pred, target, delta=0.1)
+        bp_crit = lambda pred, target: F.huber_loss(pred, target, delta=0.1, reduction="sum")
     # data preparation
     # config['init_pe_dim'] = graph.edge_attr.size(1)
     if bottleneck:
@@ -230,7 +230,7 @@ def evaluate(model, data_type, data_loader, config, logger=None, writer=None):
             else:
                 pred = model(batch)
                 evaluate_results["mean"]["preds"].extend(pred.view(-1).tolist())
-                importance_loss = huber_loss(pred, importance)
+                importance_loss = huber_loss(pred, importance, reduction="sum")
                 bp_loss = importance_loss
             et = time.time()
             evaluate_results["time"]["total"] += et - st
@@ -298,11 +298,12 @@ def test(save_model_dir, test_loaders, config, logger, writer):
     with open(
             os.path.join(
                 save_model_dir,
-                "%s_%s_%s_pre_trained.json"
+                "%s_%s_%s_pre_trained_%s.json"
                 % (
                         finetune_config["model"],
                         "best_test",
                         finetune_config["dataset"],
+                        finetune_config['task']
                 ),
             ),
             "w",
@@ -339,7 +340,7 @@ if __name__ == "__main__":
     os.makedirs(save_model_dir, exist_ok=True)
 
     # save config
-    with open(os.path.join(save_model_dir, "train_config.json"), "w") as f:
+    with open(os.path.join(save_model_dir, "finetune_config.json"), "w") as f:
         json.dump(finetune_config, f)
 
     # set logger
@@ -369,9 +370,14 @@ if __name__ == "__main__":
         # load data
         # os.makedirs(train_config["save_data_dir"], exist_ok=True)
     # decompose the query
-    train_loader, val_loader, test_loader = importance_graph_load(
-        finetune_config['dataset'], batch_size=finetune_config["batch_size"],train_ratio=0.8,val_ratio=0.1
-    )
+    if finetune_config['task'] == "importance":
+        train_loader, val_loader, test_loader = importance_graph_load(
+            finetune_config['dataset'], batch_size=finetune_config["batch_size"], train_ratio=0.8, val_ratio=0.1
+        )
+    elif finetune_config['task'] == "localcounting":
+        train_loader, val_loader, test_loader = counting_graph_load(
+            finetune_config['dataset'], batch_size=finetune_config["batch_size"], train_ratio=0.8, val_ratio=0.1
+        )
     # config['init_g_dim'] = graph.x.size(1)
     # train_config.update({'init_g_dim': graph.x.size(1)})
     # construct the model
@@ -383,19 +389,19 @@ if __name__ == "__main__":
                                         "best_epoch_" + finetune_config['model'] + ".pt")
         )
     elif finetune_config['task'] == "localcounting":
-        model = Gphormer(finetune_config['graph_num_layers'],
-                         finetune_config["init_g_dim"],
-                         finetune_config["num_g_hid"],
-                         finetune_config['init_e_dim'],
-                         finetune_config['num_e_hid'],
-                         output_dim=finetune_config["out_g_ch"],
-                         pretrain=True)
+        model = Pipeline(
+            input_dim=finetune_config["init_g_dim"], layer_num=finetune_config['graph_num_layers'],
+            pre_train_path=os.path.join("..", finetune_config['save_model_dir'],
+                                        "best_epoch_" + finetune_config['model'] + ".pt")
+        )
     else:
         raise NotImplementedError(
             "Currently, the %s model is not supported" % (finetune_config["model"])
         )
     # model = torch.compile(model)
-    logger.info(model)
+    for name, param in model.named_parameters():
+        if param.requires_grad:
+            logger.info(f"Parameter: {name}, Size: {param.size()}")
     logger.info(
         "num of parameters: %d"
         % (sum(p.numel() for p in model.parameters() if p.requires_grad))
