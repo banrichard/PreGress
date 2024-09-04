@@ -7,33 +7,38 @@ from torch.utils.data import Sampler
 
 
 class MotifDataset(Dataset):
+
     def __init__(self, motif_gt_data, subgraphs, dataset_name):
+        super().__init__()
         self.motif_gt_data = motif_gt_data
         self.subgraphs = subgraphs
-        self.data_list = self._prepare_data()
         self.dataset_name = dataset_name
+        self.data_list = self._prepare_data()
 
     def _prepare_data(self):
-        if os.path.exists(os.path.join("/mnt/data/banlujie", self.dataset_name, self.dataset_name + "counting.pt")):
+        if os.path.exists(os.path.join("/mnt/data/banlujie/dataset", self.dataset_name, self.dataset_name + "counting.pt")):
             data_list = torch.load(
                 os.path.join("/mnt/data/banlujie", self.dataset_name, self.dataset_name + "counting.pt"))
         else:
             data_list = []
-            for key, (motif, ground_truth_tensor) in self.motif_gt_data.items():
-                for i in range(len(ground_truth_tensor)):
-                    # Local count to subgraph index
-                    data_list.append((motif, self.subgraphs[i], ground_truth_tensor[i].item()))
+            for key, motif_pairs in self.motif_gt_data.items():
+                for pair in motif_pairs:
+                    motif, gt_tensor = pair
+                    gt_list = gt_tensor.tolist()
+                    for i, gt_value in enumerate(gt_list):
+                        # Create a tuple with the subgraph, motif, and ground truth value
+                        data_list.append((self.subgraphs[i], motif, torch.tensor([gt_value])))
             torch.save(data_list,
-                       os.path.join("/mnt/data/banlujie", self.dataset_name, self.dataset_name + "counting.pt"))
+                       os.path.join("/mnt/data/banlujie/dataset", self.dataset_name, self.dataset_name + "counting.pt"))
         return data_list
 
 
-def __len__(self):
-    return len(self.data_list)
+    def __len__(self):
+        return len(self.data_list)
 
 
-def __getitem__(self, idx):
-    return self.data_list[idx]
+    def __getitem__(self, idx):
+        return self.data_list[idx]
 
 
 class RandomBatchSampler(Sampler):

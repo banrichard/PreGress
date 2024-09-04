@@ -17,7 +17,6 @@ from sklearn.preprocessing import MinMaxScaler
 import re
 
 from data.motif_dataset import MotifDataset, RandomBatchSampler
-from main_pretrain import train
 from utils.extraction import k_hop_induced_subgraph
 
 
@@ -206,9 +205,10 @@ def load_queries(queryset_load_path, true_card_load_path, dataname="yeast", subm
                 query = load_local_query(file_path)
                 query_tensor = from_networkx(query, group_node_attrs=['x'], group_edge_attrs=['edge_attr'])
                 true_card = read_ground_truth_from_file(os.path.join(true_card_load_path, subdir, filename))
-                all_queries[sign].append((query_tensor, true_card))
+                query_tensor.y = true_card
+                all_queries[sign].append(query_tensor)
                 if submode and sign > 70:
-                    test_set[sign].append((query_tensor, true_card))
+                    test_set[sign].append(query_tensor)
                     all_queries.pop(sign)
                 num_queries += 1
 
@@ -345,18 +345,23 @@ def counting_graph_load(dataset_name, batch_size=16, task="localcounting", train
         data_file = os.path.join("/mnt", "data", "banlujie", "dataset", "web-spam", "web-spam.txt")
         graph, _, _ = meta_graph_load(data_file)
         query_graphs, num_queries, size_num, pattern_num, _ = load_queries(
-            "/mnt/8t_data/banlujie/dataset/web-spam/query_graph",
-            "/mnt/8t_data/banlujie/dataset/web-spam/label", dataname="web-spam", submode=False)
+            "/mnt/data/banlujie/dataset/web-spam/query_graph",
+            "/mnt/data/banlujie/dataset/web-spam/label", dataname="web-spam", submode=False)
         subgraph_sets = subgraph_construction(graph, data_file)
-        dataset = MotifDataset(query_graphs, subgraph_sets, dataset_name)
-        train_size = int(train_ratio * len(dataset))  # 70% for training
-        val_size = int(val_ratio * len(dataset))  # 15% for validation
-        test_size = len(dataset) - train_size - val_size  # 15% for testing
-        train_dataset, val_dataset, test_dataset = random_split(dataset, [train_size, val_size, test_size])
-        train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-        val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
-        test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
-    return train_loader, val_loader, test_loader
+        graph_batch = Batch.from_data_list(subgraph_sets)
+        motif_list = [item for sublist in list(query_graphs.values()) for item in
+                      sublist]  # list(query_graphs.values())
+        motif_batch = Batch.from_data_list(motif_list)
+        motif_batch.edge_attr = motif_batch.edge_attr.to(torch.float32)
+        num_instances = len(motif_list)
+        random.shuffle(motif_list)
+        train_sets = motif_batch[: int(num_instances * train_ratio)]
+        # merge to all_train_sets
+        val_sets = motif_batch[int(num_instances * train_ratio): int(num_instances * (train_ratio + val_ratio))]
+        test_sets = motif_batch[int(num_instances * (train_ratio + val_ratio)):]
+        train_loader, val_loader, test_loader = to_dataloader(train_sets, batch_size=batch_size), to_dataloader(
+            val_sets, batch_size=batch_size), to_dataloader(test_sets, batch_size=batch_size)
+    return graph_batch, train_loader, val_loader, test_loader
 
 
 def to_dataloader(dataset, batch_size=1, shuffle=True, num_workers=16):
@@ -543,6 +548,7 @@ def read_ground_truth_from_file(file_path):
         scaler = MinMaxScaler()
         normalized_gt = scaler.fit_transform(gt.reshape(-1, 1))
         ground_truths = torch.tensor(normalized_gt)
+        ground_truths = ground_truths.to(torch.float32)
     return ground_truths
 
 
@@ -554,4 +560,4 @@ def extract_size_from_directory_name(file_name):
 
 
 if __name__ == "__main__":
-    dataset_load("web-spam")
+    counting_graph_load("web-spam")

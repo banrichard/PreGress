@@ -13,10 +13,8 @@ import torch.nn.functional as F
 from torch import optim
 from torch.nn.functional import huber_loss
 from torch.utils.tensorboard import SummaryWriter
-from data.data_load import dataset_load, importance_graph_load, counting_graph_load
+from data.data_load import importance_graph_load, counting_graph_load
 from non_meta.model_construction import ImportancePipeline, Pipeline
-from pretrain.GIN_pretrain import GIN
-from pretrain.graphormer_pretrain import Gphormer
 
 warnings.filterwarnings("ignore")
 torch.autograd.set_detect_anomaly(True)
@@ -28,8 +26,8 @@ finetune_config = {
     "gpu_id": 2,
     "num_workers": 16,
     "epochs": 200,
-    "batch_size": 64,
-    "update_every": 1,  # actual batch_sizer = batch_size * update_every
+    "batch_size": 1,
+    "update_every": 16,  # actual batch_sizer = batch_size * update_every
     "print_every": 10,
     "init_emb": True,  # None, Normal
     "share_emb": False,  # sharing embedding requires the same vector length
@@ -86,19 +84,8 @@ def minmax(tensor):
     return (tensor - tensor.min()) / (tensor.max() - tensor.min())
 
 
-def train(
-        model,
-        optimizer,
-        scheduler,
-        data_type,
-        data_loader,
-        device,
-        config,
-        epoch,
-        logger=None,
-        writer=None,
-        bottleneck=False,
-):
+def train(model, optimizer, scheduler, data_type, data_loader, device, config, epoch, logger=None, writer=None,
+          bottleneck=False, graph=None):
     global bp_crit, reg_crit
     epoch_step = len(data_loader)
     total_step = config["epochs"] * epoch_step
@@ -121,7 +108,7 @@ def train(
     elif config["bp_loss"] == "SMSE":
         bp_crit = lambda pred, target: F.smooth_l1_loss(pred, target)
     elif config["bp_loss"] == "HUBER":
-        bp_crit = lambda pred, target: F.huber_loss(pred, target, delta=0.1, reduction="sum")
+        bp_crit = lambda pred, target: F.huber_loss(pred, target, delta=0.1)
     # data preparation
     # config['init_pe_dim'] = graph.edge_attr.size(1)
     if bottleneck:
@@ -136,22 +123,25 @@ def train(
             )
         )
     model.to(device)
-
     model.train()
     total_time = 0
     for i, batch in enumerate(data_loader):
         batch = batch.to(device)
-        batch.x = batch.x.to(torch.float32)
-        batch.y_eigen = minmax(batch.y_eigen)
         s = time.time()
-        if config['model'] == "Graphormer":
-            pred, importance_loss = model(batch)
-            total_loss_per_step = importance_loss
+        if config['task'] == "importance":
+            batch.x = batch.x.to(torch.float32)
+            batch.y_eigen = minmax(batch.y_eigen)
+        elif config['task'] == "localcounting":
+            s = time.time()
+            pred, reg = model(graph, batch)
+            counting_loss = bp_crit(pred, batch.y)
+            bp_loss = counting_loss + reg
+            bp_loss.backward()
         else:
             pred = model(batch)
             importance_loss = bp_crit(pred, batch.y_eigen)
             importance_loss.backward()
-        bp_loss_item = importance_loss.item()
+        bp_loss_item = importance_loss.item() if config['task'] == "importance" else bp_loss.item()
         total_bp_loss += bp_loss_item
 
         if writer:
@@ -186,6 +176,7 @@ def train(
         e = time.time()
         total_time += e - s
         total_cnt += 1
+
     mean_bp_loss = total_bp_loss / total_cnt
     if writer:
         writer.add_scalar(
@@ -202,7 +193,7 @@ def train(
     return mean_bp_loss, total_time
 
 
-def evaluate(model, data_type, data_loader, config, logger=None, writer=None):
+def evaluate(model, data_type, data_loader, config, logger=None, writer=None, graph=None):
     epoch_step = len(data_loader)
     total_step = config["epochs"] * epoch_step
     total_var_loss = 0
@@ -219,14 +210,14 @@ def evaluate(model, data_type, data_loader, config, logger=None, writer=None):
     preds = []
     with torch.no_grad():
         for batch_id, batch in enumerate(data_loader):
-            batch.x = batch.x.to(torch.float32)
             st = time.time()
-            importance = batch.y_eigen
+            importance = batch.y_eigen if config['task'] == "importance" else batch.y
             importance = minmax(importance)
             evaluate_results["mean"]["importance"].extend(importance.view(-1).tolist())
-            if config['model'] == "Graphormer":
-                pred, importance_loss = model(batch)
-                bp_loss = importance_loss
+            if config['task'] == "localcounting":
+                pred, reg = model(graph, batch)
+                counting_loss = bp_crit(pred, batch.y)
+                bp_loss = counting_loss + reg
             else:
                 pred = model(batch)
                 evaluate_results["mean"]["preds"].extend(pred.view(-1).tolist())
@@ -239,7 +230,7 @@ def evaluate(model, data_type, data_loader, config, logger=None, writer=None):
             evaluate_results["time"]["avg"].extend([avg_t])
             bp_loss_item = bp_loss.mean().item()
             total_bp_loss += bp_loss_item
-            evaluate_results["error"]["importance_loss"].extend(importance_loss.view(-1).tolist())
+            evaluate_results["error"]["importance_loss"].extend([bp_loss_item])
             et = time.time()
             total_time += et - st
             total_cnt += 1
@@ -269,7 +260,7 @@ def evaluate(model, data_type, data_loader, config, logger=None, writer=None):
     return mean_bp_loss, evaluate_results, total_time
 
 
-def test(save_model_dir, test_loaders, config, logger, writer):
+def test(save_model_dir, test_loaders, config, logger, writer, graph=None):
     total_test_time = 0
     model.load_state_dict(
         torch.load(
@@ -374,26 +365,25 @@ if __name__ == "__main__":
         train_loader, val_loader, test_loader = importance_graph_load(
             finetune_config['dataset'], batch_size=finetune_config["batch_size"], train_ratio=0.8, val_ratio=0.1
         )
-    elif finetune_config['task'] == "localcounting":
-        train_loader, val_loader, test_loader = counting_graph_load(
-            finetune_config['dataset'], batch_size=finetune_config["batch_size"], train_ratio=0.8, val_ratio=0.1
-        )
-    # config['init_g_dim'] = graph.x.size(1)
-    # train_config.update({'init_g_dim': graph.x.size(1)})
-    # construct the model
-    finetune_config["init_g_dim"] = next(iter(train_loader)).x.shape[1]
-    if finetune_config["task"] == "importance":
+        finetune_config["init_g_dim"] = next(iter(train_loader)).x.shape[1]
         model = ImportancePipeline(
             input_dim=finetune_config["init_g_dim"], layer_num=finetune_config['graph_num_layers'],
             pre_train_path=os.path.join("..", finetune_config['save_model_dir'],
                                         "best_epoch_" + finetune_config['model'] + ".pt")
         )
     elif finetune_config['task'] == "localcounting":
+        graph_batch, train_loader, val_loader, test_loader = counting_graph_load(
+            finetune_config['dataset'], batch_size=finetune_config["batch_size"], train_ratio=0.8, val_ratio=0.1
+        )
+        finetune_config["init_g_dim"] = graph_batch.x.shape[1]
         model = Pipeline(
             input_dim=finetune_config["init_g_dim"], layer_num=finetune_config['graph_num_layers'],
             pre_train_path=os.path.join("..", finetune_config['save_model_dir'],
                                         "best_epoch_" + finetune_config['model'] + ".pt")
         )
+    # config['init_g_dim'] = graph.x.size(1)
+    # train_config.update({'init_g_dim': graph.x.size(1)})
+    # construct the model
     else:
         raise NotImplementedError(
             "Currently, the %s model is not supported" % (finetune_config["model"])
@@ -444,6 +434,7 @@ if __name__ == "__main__":
             logger=logger,
             writer=writer,
             bottleneck=False,
+            graph=graph_batch.to(device) if finetune_config['task'] == "localcounting" else None
         )
         total_train_time += _time
         if scheduler and (epoch + 1) % finetune_config["decay_patience"] == 0:
@@ -456,21 +447,13 @@ if __name__ == "__main__":
             config=finetune_config,
             logger=logger,
             writer=writer,
+            graph=graph_batch.to("cpu") if finetune_config['task'] == "localcounting" else None
         )
         if writer:
             writer.add_scalar(
                 "%s/BP-%s-epoch" % ("val", finetune_config["bp_loss"]), mean_bp_loss, epoch
             )
             total_dev_time += total_time
-            # cur_reg_loss[loader_idx] = mean_reg_loss
-            # flag = True
-            # for key1, key2 in zip(cur_reg_loss.keys(), best_reg_losses.keys()):
-            #     if cur_reg_loss[key1] > best_reg_losses[key2]:
-            #         flag = False
-            # if flag:
-            #     for key1, key2 in zip(cur_reg_loss.keys(), best_reg_losses.keys()):
-            #         best_reg_losses[key2] = cur_reg_loss[key1]
-            #     best_reg_epochs['val'] = epoch
         err = best_bp_losses - mean_bp_loss
         if err > 1e-5:
             tolerance_cnt = 0
@@ -502,7 +485,8 @@ if __name__ == "__main__":
             break
     print("data finish")
     evaluate_results, total_test_time = test(
-        save_model_dir, test_loader, finetune_config, logger, writer
+        save_model_dir, test_loader, finetune_config, logger, writer,
+        graph=graph_batch.to(device) if finetune_config['task'] == "localcounting" else None
     )
     logger.info(
         "train time: {:.3f}, train time per epoch :{:.3f}, test time: {:.3f}, all time: {:.3f}".format(

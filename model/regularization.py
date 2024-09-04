@@ -1,6 +1,7 @@
 import torch
 from torch import nn
-from torch import functional as F
+from torch.nn import functional as F
+from xarray.util.generate_ops import inplace
 
 
 class CCANet(torch.nn.Module):
@@ -25,20 +26,21 @@ class CCANet(torch.nn.Module):
         for layer in [self.graph_layer, self.motif_layer, self.pred_layer1]:
             nn.init.xavier_uniform_(layer.weight)
             nn.init.zeros_(layer.bias)
-        for layer in [self.pred_mean, self.pred_var]:
-            nn.init.kaiming_uniform_(layer.weight, nonlinearity='relu')
-            nn.init.zeros_(layer.bias)
+
+        nn.init.kaiming_uniform_(self.output.weight, nonlinearity='relu')
+        nn.init.zeros_(self.output.bias)
 
     def forward(self, graph, motif):
         graph_cca = self.ln(self.graph_layer(graph))
         motif_cca = self.ln(self.motif_layer(motif))
+        motif_cca = motif_cca.expand(graph_cca.shape)
         c = torch.mm(graph_cca.T, motif_cca)
         c1 = torch.mm(graph_cca.T, graph_cca)
         c2 = torch.mm(motif_cca.T, motif_cca)
-        loss_inv = -torch.diagonal(c).sum()
+        loss_inv = -torch.diagonal(c).mean()
         iden = torch.eye(c.shape[0]).to(c.device)
-        loss_dec1 = (iden - c1).pow(2).sum()
-        loss_dec2 = (iden - c2).pow(2).sum()
+        loss_dec1 = (iden - c1).pow(2).mean()
+        loss_dec2 = (iden - c2).pow(2).mean()
         y = self.pred_layer1(torch.cat([graph_cca, motif_cca], dim=1))
         y = self.act(y)
         mean = self.output(y)
