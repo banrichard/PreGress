@@ -12,7 +12,7 @@ import torch
 import torch.nn.functional as F
 from torch.utils.tensorboard import SummaryWriter
 from data.data_load import dataset_load
-from pretrain.GIN_pretrain import GIN
+from pretrain.GIN_pretrain import GraphTrainer
 from pretrain.graphormer_pretrain import Gphormer
 
 warnings.filterwarnings("ignore")
@@ -47,7 +47,7 @@ train_config = {
     "attr_ratio": 0.5,
     "decay_patience": 20,
     "max_grad_norm": 8,
-    "model": "GIN",  # Graphormer
+    "model": "SAGE",  # Graphormer
     "emb_dim": 32,
     "activation_function": "relu",  # sigmoid, softmax, tanh, relu, leaky_relu, prelu, gelu
     # MeanAttnPredictNet, SumAttnPredictNet, MaxAttnPredictNet,
@@ -258,7 +258,7 @@ def evaluate(model, data_type, data_loader, config, logger=None, writer=None):
     return mean_bp_loss, evaluate_results, total_time
 
 
-def test(save_model_dir, test_loaders, config, logger, writer):
+def model_test(save_model_dir, test_loaders, config, logger, writer):
     total_test_time = 0
     model.load_state_dict(
         torch.load(
@@ -364,8 +364,8 @@ if __name__ == "__main__":
     # train_config.update({'init_g_dim': graph.x.size(1)})
     # construct the model
     train_config["init_g_dim"] = next(iter(train_loader)).x.shape[1]
-    if train_config["model"] == "GIN":
-        model = GIN(
+    if train_config["model"] == "GIN" or train_config["model"] == "SAGE":
+        model = GraphTrainer(
             train_config["graph_num_layers"],
             train_config["init_g_dim"],
             train_config["num_g_hid"],
@@ -411,7 +411,7 @@ if __name__ == "__main__":
     total_test_time = 0
     cur_reg_loss = {}
     if train_config["test_only"]:
-        evaluate_results, total_test_time = test(
+        evaluate_results, total_test_time = model_test(
             save_model_dir, test_loader, train_config, logger, writer
         )
         exit(0)
@@ -490,7 +490,7 @@ if __name__ == "__main__":
         if tolerance_cnt >= 20:
             break
     print("data finish")
-    evaluate_results, total_test_time = test(
+    evaluate_results, total_test_time = model_test(
         save_model_dir, test_loader, train_config, logger, writer
     )
     logger.info(

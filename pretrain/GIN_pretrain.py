@@ -11,9 +11,9 @@ from model.attention import TransformerRegressor
 import torch.nn.functional as F
 
 
-class GIN(PreTrain):
+class GraphTrainer(PreTrain):
     def __init__(self, num_layer=5, input_dim=11, hid_dim=32, output_dim=16, dropout=0.2):
-        super().__init__("GIN", dropout=dropout)
+        super().__init__("SAGE", dropout=dropout)
         self.num_layer = num_layer
         self.input_dim = input_dim
         self.output_dim = output_dim

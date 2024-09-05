@@ -479,19 +479,6 @@ def meta_motif_load(dataset_name, shot_num=5, task_pairs=None):
             i += 1
             yield task_1, task_2, support, query[0], len(task_pairs), query[0].y
 
-        # for size, data in query_graphs.items():
-        #     train_set.extend(data[:shot_num])
-        #     random.shuffle(train_set)
-        #     remaining_data.extend(data[shot_num:])
-        # random.shuffle(remaining_data)
-        # val_dataset_size = len(remaining_data) // 9
-        # val_dataset = remaining_data[:val_dataset_size]
-        # test_dataset = remaining_data[val_dataset_size:]
-        # train_set = raw_meta_set2pyg(train_set, "train")
-        # val_dataset = raw_meta_set2pyg(val_dataset, "val")
-        # test_dataset = raw_meta_set2pyg(test_dataset, "test")
-        # yield  train_set, val_dataset, test_dataset
-
 
 def raw_meta_set2pyg(dataset, type, dataset_name="yeast"):
     # dataset = query_graphs[task_1][:shot_num] + query_graphs[task_2][:shot_num]

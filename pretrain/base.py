@@ -6,7 +6,7 @@ import torch.nn as nn
 
 
 class PreTrain(torch.nn.Module):
-    def __init__(self, gnn_type='GIN', dataset_name='QM9', hid_dim=128, num_layer=3, num_epoch=100, dropout=0.5):
+    def __init__(self, gnn_type='SAGE', dataset_name='QM9', hid_dim=128, num_layer=3, num_epoch=100, dropout=0.5):
         super().__init__()
         self.dataset_name = dataset_name
         self.gnn_type = gnn_type
