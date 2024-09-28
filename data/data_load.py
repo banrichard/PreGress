@@ -2,8 +2,8 @@ import math
 import random
 import os
 import pickle
+from os.path import dirname
 
-from torch.utils.data import random_split
 from tqdm import tqdm
 import numpy as np
 import torch
@@ -15,7 +15,7 @@ from torch_geometric.datasets import QM9
 from gensim.models import KeyedVectors
 from sklearn.preprocessing import MinMaxScaler
 import re
-
+import nx_cugraph as nxcg
 from data.motif_dataset import MotifDataset, RandomBatchSampler
 from utils.extraction import k_hop_induced_subgraph
 
@@ -94,15 +94,18 @@ def meta_graph_load(file_name):
     """
      This is for loading the graphs used in meta-learning
     """
+    dir_name = os.path.dirname(file_name)
+    name_file = os.path.basename(file_name)
     file = open(file_name)
     nodes_list = []
     edges_list = []
     if file_name.endswith("web-spam.txt") and os.path.exists(
-            os.path.join("/mnt", "data", "banlujie", "dataset", "web-spam", 'web-spam.pickle')):
+            os.path.join("/mnt", "data", "banlujie", "dataset", dir_name, name_file + '.pickle')):
         graph = pickle.load(
-            open(os.path.join("/mnt", "data", "banlujie", "dataset", "web-spam", 'web-spam.pickle'), "rb"))
+            open(os.path.join("/mnt", "data", "banlujie", "dataset", dir_name, name_file + '.pickle'), "rb"))
         degree_centrality = np.array([graph.nodes[i]['degree_centrality'] for i in graph.nodes()])
         eigenvector_centrality = np.array([graph.nodes[i]['eigenvector_centrality'] for i in graph.nodes()])
+        print("successfully load pickle!\n")
         return graph, degree_centrality, eigenvector_centrality
     elif file_name.endswith("web-spam.txt"):
         node_fea_np = load_embeddings(os.path.join("/mnt", "data", "banlujie", "dataset", "web-spam",
@@ -114,31 +117,21 @@ def meta_graph_load(file_name):
             dst = int(tokens[1])
             edges_list.append([src, dst, {"edge_attr": 0.0}])
     else:
+        next(file)
         for line in file:
             tokens = line.strip().split(" ")
-            if line.strip().startswith("v"):
-                # v nodeID labelID degree
-                id = int(tokens[1])
-                label = int(tokens[2])
-                nodes_list.append([id, {"x": label}])
-            if line.strip().startswith("e"):
-                src = int(tokens[1])
-                dst = int(tokens[2])
-                try:
-                    edge_attr = float(tokens[3])
-                except IndexError:
-                    edge_attr = 0
-                # edge_attr = tokens[2]  # tokens[3:]
-                edges_list.append([src, dst, {"edge_attr": edge_attr}])
+            src = int(tokens[0])
+            dst = int(tokens[1])
+            edges_list.append([src, dst, {"edge_attr": 0.0}])
     file.close()
 
     graph = nx.Graph()
     graph.add_nodes_from(nodes_list)
     graph.add_edges_from(edges_list)
-    degree_centrality = nx.degree_centrality(graph)
-    betweenness_centrality = nx.betweenness_centrality(graph)
+    degree_centrality = nx.degree_centrality(graph, backend="cugraph")
+    betweenness_centrality = nx.betweenness_centrality(graph, backend="cugraph")
     try:
-        eigenvector_centrality = nx.eigenvector_centrality(graph)
+        eigenvector_centrality = nx.eigenvector_centrality(graph, backend="cugraph")
     except nx.PowerIterationFailedConvergence:
         eigenvector_centrality = -1
     for i in range(len(graph.nodes)):
@@ -148,7 +141,7 @@ def meta_graph_load(file_name):
         graph.nodes[i]['eigenvector_centrality'] = eigenvector_centrality[i] if type(
             eigenvector_centrality) == dict else -1
     pickle.dump(graph,
-                open(os.path.join("/mnt", "8t_data", "banlujie", "dataset", "web-spam", 'web-spam.pickle'), 'wb'))
+                open(os.path.join("/mnt", "data", "banlujie", "dataset", dir_name, name_file + '.pickle'), 'wb'))
     return graph, np.array(degree_centrality), np.array(eigenvector_centrality)
 
 

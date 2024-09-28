@@ -1,7 +1,13 @@
 import networkx as nx
+import torch
 from torch_geometric.datasets import ZINC, QM9
-from torch_geometric.utils import to_networkx
+from torch_geometric.utils import to_networkx, from_networkx
+from torch_geometric.data import Data, InMemoryDataset
+from torch_geometric.loader import NeighborLoader
 import os
+import os.path as osp
+
+from data.data_load import meta_graph_load
 
 
 def dataset_load(name="ZINC", type="train"):
@@ -48,6 +54,55 @@ def graph_to_file(graph, name, i):
         for edge in graph.edges(data=True):
             file.write("e,{},{},{}\n".format(edge[0], edge[1], edge[2]['edge_attr']))
 
+
+class PretrainDataset(InMemoryDataset):
+    def __init__(self, root="./dataset", name="krogan_core", transform=None, pre_transform=None, pre_filter=None,
+                 use_edge_attr=True, filepath="krogan", train_ratio=0.8, val_ratio=0.1, test_ratio=0.1):
+        self.root = root
+        self.use_edge_attr = use_edge_attr
+        self.filepath = filepath
+        self.name = name
+        self.transform = transform
+        self.pre_transform = pre_transform
+        self.pre_filter = pre_filter
+        self.train_ratio = train_ratio
+        self.val_ratio = val_ratio
+        self.test_ratio = test_ratio
+        self.cnt = 0
+        self.edge_batch = torch.zeros(1).to(torch.int64)
+        super().__init__(root, transform, pre_transform, pre_filter)
+        self.data, self.slices, self.edge_batch = torch.load(self.processed_paths[0])
+
+    @property
+    def raw_dir(self) -> str:
+        return osp.join(self.root, self.filepath)
+
+    @property
+    def processed_dir(self) -> str:
+        return osp.join(self.root, self.filepath, self.name)
+
+    @property
+    def raw_file_names(self):
+        return ['./dataset/krogan/label', "./dataset/krogan/queryset"]
+
+    @property
+    def processed_file_names(self):
+        return [self.name + '.pt']
+
+    def dataset_split(self):
+        assert self.train_ratio + self.val_ratio <= 1.0, "Error split ratios!"
+
+
+    def process(self):
+        # Read data into huge `Data` list.
+        data_list = []
+        graph,_,_ = meta_graph_load(osp.join(self.root, self.filepath, self.name + ".txt"))
+        data = from_networkx(graph)
+        graph.x = graph.x.unsqueeze(1)
+        graph.degree_centrality = graph.degree_centrality.unsqueeze(1)
+        graph.betweenness_centrality = graph.degree_centrality.unsqueeze(1)
+        graph.eigen
+        torch.save(data, self.processed_paths[0])
 
 
 if __name__ == "__main__":
