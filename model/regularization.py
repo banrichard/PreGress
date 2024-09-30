@@ -1,7 +1,7 @@
 import torch
 from torch import nn
 from torch.nn import functional as F
-from xarray.util.generate_ops import inplace
+from torch_geometric.nn import global_mean_pool
 
 
 class CCANet(torch.nn.Module):
@@ -33,7 +33,7 @@ class CCANet(torch.nn.Module):
     def forward(self, graph, motif):
         graph_cca = self.ln(self.graph_layer(graph))
         motif_cca = self.ln(self.motif_layer(motif))
-        motif_cca = motif_cca.expand(graph_cca.shape)
+        graph_cca = torch.sum(graph_cca, dim=0).reshape(1,-1)
         c = torch.mm(graph_cca.T, motif_cca)
         c1 = torch.mm(graph_cca.T, graph_cca)
         c2 = torch.mm(motif_cca.T, motif_cca)

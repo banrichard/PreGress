@@ -26,7 +26,7 @@ finetune_config = {
     "gpu_id": 2,
     "num_workers": 16,
     "epochs": 200,
-    "batch_size": 1,
+    "batch_size": 16,
     "update_every": 16,  # actual batch_sizer = batch_size * update_every
     "print_every": 10,
     "init_emb": True,  # None, Normal
@@ -70,9 +70,9 @@ finetune_config = {
     "graph_num_layers": 5,
     "queryset_dir": "queryset",
     "true_card_dir": "label",
-    "dataset": "web-spam",
+    "dataset": "indochina",
     "data_dir": "dataset",
-    "dataset_name": "web-spam",
+    "dataset_name": "indochina",
     "save_res_dir": "result",
     "save_model_dir": "saved_model",
     "task": "importance",
@@ -130,17 +130,16 @@ def train(model, optimizer, scheduler, data_type, data_loader, device, config, e
         s = time.time()
         if config['task'] == "importance":
             batch.x = batch.x.to(torch.float32)
-            batch.y_eigen = minmax(batch.y_eigen)
+            # batch.y_eigen = minmax(batch.y_eigen)
+            pred = model(batch)
+            importance_loss = bp_crit(pred, batch.y_eigen)
+            importance_loss.backward()
         elif config['task'] == "localcounting":
             s = time.time()
             pred, reg = model(graph, batch)
             counting_loss = bp_crit(pred, batch.y)
             bp_loss = counting_loss + finetune_config["trade_off"] * reg
             bp_loss.backward()
-        else:
-            pred = model(batch)
-            importance_loss = bp_crit(pred, batch.y_eigen)
-            importance_loss.backward()
         bp_loss_item = importance_loss.item() if config['task'] == "importance" else bp_loss.item()
         total_bp_loss += bp_loss_item
 
@@ -260,7 +259,7 @@ def evaluate(model, data_type, data_loader, config, logger=None, writer=None, gr
     return mean_bp_loss, evaluate_results, total_time
 
 
-def test(save_model_dir, test_loaders, config, logger, writer, graph=None):
+def model_test(save_model_dir, test_loaders, config, logger, writer, graph=None):
     total_test_time = 0
     model.load_state_dict(
         torch.load(
@@ -412,7 +411,7 @@ if __name__ == "__main__":
     total_test_time = 0
     cur_reg_loss = {}
     if finetune_config["test_only"]:
-        evaluate_results, total_test_time = test(
+        evaluate_results, total_test_time = model_test(
             save_model_dir, test_loader, finetune_config, logger, writer,
             graph=graph_batch if finetune_config['task'] == "localcounting" else None
         )
@@ -485,7 +484,7 @@ if __name__ == "__main__":
         if tolerance_cnt >= 20:
             break
     print("data finish")
-    evaluate_results, total_test_time = test(
+    evaluate_results, total_test_time = model_test(
         save_model_dir, test_loader, finetune_config, logger, writer,
         graph=graph_batch if finetune_config['task'] == "localcounting" else None
     )

@@ -1,12 +1,14 @@
 import os
 
+
 def get_backbone_name(file_path):
     file_name = os.path.basename(file_path)  # Returns 'best_epoch_GIN.pt'
 
     # Split the file name to isolate the backbone name
     backbone_name = file_name.split('_')[-1].split('.')[0]  # Splits by '_' and then by '.'
 
-    return backbone_name # Output: 'GIN'
+    return backbone_name  # Output: 'GIN'
+
 
 def rename_files_with_labels(pattern_graph_dir, label_dir):
     # Extract the number of nodes from the pattern graph directory name
@@ -14,7 +16,6 @@ def rename_files_with_labels(pattern_graph_dir, label_dir):
     number_of_nodes = ''.join(filter(str.isdigit, directory_name))
 
     unique_id = 1  # Start ID from 1
-
     # Iterate over all files in the pattern graph directory
     for filename in os.listdir(pattern_graph_dir):
         if filename.endswith(".txt"):
@@ -33,7 +34,10 @@ def rename_files_with_labels(pattern_graph_dir, label_dir):
             print(f"Renamed {filename} to {new_filename} in pattern graph directory")
 
             # Find the corresponding label file in the label directory
-            label_file_path = os.path.join(label_dir, filename)
+            if os.path.exists(os.path.join(label_dir, filename)):
+                label_file_path = os.path.join(label_dir, filename)
+            else:
+                continue
             if os.path.exists(label_file_path):
                 # Rename the corresponding label file
                 os.rename(label_file_path, os.path.join(label_dir, new_filename))
@@ -46,8 +50,8 @@ def rename_files_with_labels(pattern_graph_dir, label_dir):
 
 
 # Set the directory paths
-pattern_graph_dir = '/mnt/8t_data/banlujie/dataset/web-spam/query_graph/7voc'
-label_dir = '/mnt/8t_data/banlujie/dataset/web-spam/label/7voc'
+pattern_graph_dir = '/mnt/data/banlujie/dataset/indochina/query_graph/7voc'
+label_dir = '/mnt/data/banlujie/dataset/indochina/label/7voc'
 
 # Call the function to rename files and their corresponding labels
 rename_files_with_labels(pattern_graph_dir, label_dir)

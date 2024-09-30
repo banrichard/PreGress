@@ -12,8 +12,11 @@ import torch
 import torch.nn.functional as F
 from torch.utils.tensorboard import SummaryWriter
 from data.data_load import dataset_load
+from data.dataset import PretrainDataset
 from pretrain.GIN_pretrain import GraphTrainer
 from pretrain.graphormer_pretrain import Gphormer
+from torch_geometric.loader import NeighborLoader
+
 
 warnings.filterwarnings("ignore")
 torch.autograd.set_detect_anomaly(True)
@@ -22,11 +25,11 @@ INF = float("inf")
 train_config = {
     "base": 2,
     "cuda": True,
-    "gpu_id": 2,
+    "gpu_id": 5,
     "num_workers": 16,
     "epochs": 200,
-    "batch_size": 16,
-    "update_every": 1,  # actual batch_sizer = batch_size * update_every
+    "batch_size": 1,
+    "update_every": 4,  # actual batch_sizer = batch_size * update_every
     "print_every": 10,
     "init_emb": True,  # None, Normal
     "share_emb": False,  # sharing embedding requires the same vector length
@@ -137,12 +140,15 @@ def train(
         batch.x = batch.x.to(torch.float32)
         s = time.time()
         if config['model'] == "Graphormer":
-            pred, importance_loss = model(batch)
+            pred, importance_loss = model(batch)[:16]
             total_loss_per_step = importance_loss
         else:
-            importance_loss, attr_loss = model(batch)
+            importance_loss, attr_loss = model(batch)[:16]
             total_loss_per_step = importance_loss + attr_loss
             total_loss_per_step.backward()
+            if (i + 1) % config['update_every'] == 0:
+                optimizer.step()
+                optimizer.zero_grad()
         bp_loss_item = total_loss_per_step.item()
         total_bp_loss += bp_loss_item
 
@@ -212,7 +218,7 @@ def evaluate(model, data_type, data_loader, config, logger=None, writer=None):
         for batch_id, batch in enumerate(data_loader):
             batch.x = batch.x.to(torch.float32)
             st = time.time()
-            importance = batch.y_dc
+            importance = batch.degree_centrality
             evaluate_results["mean"]["importance"].extend(importance.view(-1).tolist())
             if config['model'] == "Graphormer":
                 pred, importance_loss = model(batch)
@@ -357,9 +363,42 @@ if __name__ == "__main__":
         # load data
         # os.makedirs(train_config["save_data_dir"], exist_ok=True)
     # decompose the query
-    train_loader, val_loader, test_loader = dataset_load(
-        train_config['dataset'], batch_size=train_config["batch_size"]
-    )
+    if train_config['dataset'] == "flixster" or train_config['dataset'] == "youtube":
+        data = PretrainDataset(name=train_config['dataset'], filepath=train_config['dataset'])[0][0] if train_config[
+                                                                                                            'dataset'] == "flixster" else \
+        PretrainDataset(name=train_config['dataset'], filepath=train_config['dataset'])[0]
+        kwargs = dict(
+            data=data,
+            num_neighbors=[10, 10] * 2,
+            batch_size=train_config["batch_size"],
+            num_workers=8,
+            pin_memory=True
+        )
+        train_idx = data.train_mask.nonzero(as_tuple=False).view(-1) if train_config[
+                                                                            'dataset'] == "youtube" else data.train_idx
+        val_idx = data.val_mask.nonzero(as_tuple=False).view(-1) if train_config[
+                                                                        'dataset'] == "youtube" else data.val_idx
+        test_idx = data.val_mask.nonzero(as_tuple=False).view(-1) if train_config[
+                                                                         'dataset'] == "youtube" else data.test_idx
+        train_loader = NeighborLoader(
+            input_nodes=train_idx,
+            shuffle=True,
+            **kwargs,
+        )
+        val_loader = NeighborLoader(
+            input_nodes=val_idx,
+            shuffle=False,
+            **kwargs,
+        )
+        test_loader = NeighborLoader(
+            input_nodes=test_idx,
+            shuffle=False,
+            **kwargs,
+        )
+    else:
+        train_loader, val_loader, test_loader = dataset_load(
+            train_config['dataset'], batch_size=train_config["batch_size"]
+        )
     # config['init_g_dim'] = graph.x.size(1)
     # train_config.update({'init_g_dim': graph.x.size(1)})
     # construct the model

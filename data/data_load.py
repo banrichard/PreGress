@@ -4,6 +4,7 @@ import os
 import pickle
 from os.path import dirname
 
+from pyarrow.dataset import dataset
 from tqdm import tqdm
 import numpy as np
 import torch
@@ -15,8 +16,7 @@ from torch_geometric.datasets import QM9
 from gensim.models import KeyedVectors
 from sklearn.preprocessing import MinMaxScaler
 import re
-import nx_cugraph as nxcg
-from data.motif_dataset import MotifDataset, RandomBatchSampler
+
 from utils.extraction import k_hop_induced_subgraph
 
 
@@ -99,7 +99,7 @@ def meta_graph_load(file_name):
     file = open(file_name)
     nodes_list = []
     edges_list = []
-    if file_name.endswith("web-spam.txt") and os.path.exists(
+    if os.path.exists(
             os.path.join("/mnt", "data", "banlujie", "dataset", dir_name, name_file + '.pickle')):
         graph = pickle.load(
             open(os.path.join("/mnt", "data", "banlujie", "dataset", dir_name, name_file + '.pickle'), "rb"))
@@ -118,7 +118,7 @@ def meta_graph_load(file_name):
             edges_list.append([src, dst, {"edge_attr": 0.0}])
     else:
         next(file)
-        for line in file:
+        for line in tqdm(file):
             tokens = line.strip().split(" ")
             src = int(tokens[0])
             dst = int(tokens[1])
@@ -188,6 +188,10 @@ def load_queries(queryset_load_path, true_card_load_path, dataname="yeast", subm
         for subdir in os.listdir(queryset_load_path):
             subdir_path = os.path.join(queryset_load_path, subdir)
             for filename in os.listdir(subdir_path):
+                if os.path.exists(os.path.join(true_card_load_path, subdir, filename)):
+                    true_card = read_ground_truth_from_file(os.path.join(true_card_load_path, subdir, filename))
+                else:
+                    continue
                 file_path = os.path.join(subdir_path, filename)
                 size, orbit = extract_size_from_directory_name(file_path)
                 sign = size * 10 + orbit  # 5_3_1.txt -> 53, last number is an id and does not have any effect
@@ -197,7 +201,6 @@ def load_queries(queryset_load_path, true_card_load_path, dataname="yeast", subm
                 pattern_set.add(file_path)
                 query = load_local_query(file_path)
                 query_tensor = from_networkx(query, group_node_attrs=['x'], group_edge_attrs=['edge_attr'])
-                true_card = read_ground_truth_from_file(os.path.join(true_card_load_path, subdir, filename))
                 query_tensor.y = true_card
                 all_queries[sign].append(query_tensor)
                 if submode and sign > 70:
@@ -250,37 +253,33 @@ def meta_dataset_load(dataset_name):
     return graph
 
 
-def single_graph_loader(graph, data_file, batch_size=16, train_ratio=0.8, val_ratio=0.1):
-    subgraph_sets = subgraph_construction(graph, data_file)
-    trainsets, val_sets, test_sets = data_split(subgraph_sets, train_ratio, val_ratio)
-    train_loader = to_dataloader(trainsets, batch_size=batch_size)
-    val_loader = to_dataloader(val_sets, batch_size=batch_size)
-    test_loader = to_dataloader(test_sets, batch_size=batch_size)
-    return train_loader, val_loader, test_loader
-
-
-def subgraph_construction(graph, data_file):
+def single_graph_loader(graph=None, data_file=None, batch_size=16, train_ratio=0.8, val_ratio=0.1):
     if os.path.exists(os.path.dirname(data_file) + "/subgraph.pt"):
         subgraph_sets = torch.load(os.path.dirname(data_file) + "/subgraph.pt")
     else:
-        subgraph_sets = []
-        num_nodes = graph.number_of_nodes()
-        for node in graph.nodes():
-            sub_graph = k_hop_induced_subgraph(graph, node)
-            if sub_graph.number_of_nodes() == 0:
-                continue
-            sub_graph = from_networkx(sub_graph, group_node_attrs=['x'])
-            # this importance is y (label for downstream)
-            sub_graph.y_dc = graph.nodes[node]['degree_centrality']
-            sub_graph.y_eigen = graph.nodes[node]['eigenvector_centrality']
-            subgraph_sets.append(sub_graph)
-        torch.save(subgraph_sets, os.path.dirname(data_file) + "/subgraph.pt")
+        subgraph_sets = subgraph_construction(graph, data_file)
+    trainsets, val_sets, test_sets = data_split(subgraph_sets, train_ratio, val_ratio)
+    return trainsets, val_sets, test_sets
+
+
+def subgraph_construction(graph=None, data_file=None):
+    subgraph_sets = []
+    num_nodes = graph.number_of_nodes()
+    for node in graph.nodes():
+        sub_graph = k_hop_induced_subgraph(graph, node)
+        if sub_graph.number_of_nodes() == 0:
+            continue
+        sub_graph = from_networkx(sub_graph, group_node_attrs=['x'])
+        # this importance is y (label for downstream)
+        sub_graph.y_dc = graph.nodes[node]['degree_centrality']
+        sub_graph.y_eigen = graph.nodes[node]['eigenvector_centrality']
+        subgraph_sets.append(sub_graph)
+    torch.save(subgraph_sets, os.path.dirname(data_file) + "/subgraph.pt")
+    # batch = Batch.from_data_list(subgraph_sets)
     return subgraph_sets
 
 
 def dataset_load(dataset_name, batch_size=256):
-    train_loader, val_loader, test_loader = [], [], []
-
     if os.path.exists(
             os.path.join("/mnt", "data", "banlujie", "dataset", dataset_name, dataset_name + ".pt")):
         graphs = torch.load(
@@ -303,25 +302,37 @@ def dataset_load(dataset_name, batch_size=256):
             train_loader = to_dataloader(trainsets, batch_size=batch_size)
             val_loader = to_dataloader(val_sets, batch_size=batch_size)
             test_loader = to_dataloader(test_sets, batch_size=batch_size)
-        elif dataset_name == "web-spam":
-            data_file = os.path.join("/mnt", "data", "banlujie", "dataset", "web-spam", "web-spam.txt")
-            graph, importance, eigenvector_importance = meta_graph_load(
-                data_file)
-            # node_fea_np = load_embeddings(os.path.join("/mnt", "8t_data", "banlujie", "dataset", "web-spam",
-            #                                            "web-spam.emb"))  # align with pretrained GNN
-            train_loader, val_loader, test_loader = single_graph_loader(graph, data_file, batch_size=batch_size)
-    return train_loader, val_loader, test_loader
+        else:
+            if os.path.exists(os.path.join("/mnt", "data", "banlujie", "dataset", dataset_name, "subgraph.pt")):
+                train_set, val_set, test_set = single_graph_loader(
+                    data_file=os.path.join("/mnt", "data", "banlujie", "dataset", dataset_name, dataset_name + ".txt"),
+                    batch_size=batch_size)
+            else:
+                # node_fea_np = load_embeddings(os.path.join("/mnt", "8t_data", "banlujie", "dataset", "web-spam",
+                #                                            "web-spam.emb"))  # align with pretrained GNN
+                data_file = os.path.join("/mnt", "data", "banlujie", "dataset", dataset_name, dataset_name + ".txt")
+                graph, importance, eigenvector_importance = meta_graph_load(
+                    data_file)
+                train_set, val_set, test_set = single_graph_loader(graph, data_file, batch_size=batch_size)
+    return train_set, val_set, test_set
 
 
 def importance_graph_load(dataset_name, batch_size=16, task="importance", train_ratio=0.8, val_ratio=0.1):
-    if dataset_name == "web-spam":
-        data_file = os.path.join("/mnt", "data", "banlujie", "dataset", "web-spam", "web-spam.txt")
+    data_file = os.path.join("/mnt", "data", "banlujie", "dataset", dataset_name, dataset_name + ".txt")
+    if os.path.exists(os.path.join("/mnt", "data", "banlujie", "dataset", dataset_name, "subgraph.pt")):
+        train_set, val_set, test_set = single_graph_loader(
+            data_file=os.path.join("/mnt", "data", "banlujie", "dataset", dataset_name, dataset_name + ".txt"),
+            batch_size=batch_size)
+    else:
         graph, importance, eigenvector_importance = meta_graph_load(
             data_file)
         # node_fea_np = load_embeddings(os.path.join("/mnt", "8t_data", "banlujie", "dataset", "web-spam",
         #                                            "web-spam.emb"))  # align with pretrained GNN
-        train_loader, val_loader, test_loader = single_graph_loader(graph, data_file, batch_size=batch_size,
-                                                                    train_ratio=train_ratio, val_ratio=val_ratio)
+        train_set, val_set, test_set = single_graph_loader(graph, data_file, batch_size=batch_size,
+                                                           train_ratio=train_ratio, val_ratio=val_ratio)
+    train_loader, val_loader, test_loader = to_dataloader(train_set, batch_size=batch_size), to_dataloader(val_set,
+                                                                                                           shuffle=False), to_dataloader(
+        test_set, shuffle=False)
     return train_loader, val_loader, test_loader
 
 
@@ -334,26 +345,31 @@ def graph_with_motif_loader(query_graphs, subgraph_sets, batch_size, train_ratio
 
 
 def counting_graph_load(dataset_name, batch_size=16, task="localcounting", train_ratio=0.8, val_ratio=0.1):
-    if dataset_name == "web-spam":
-        data_file = os.path.join("/mnt", "data", "banlujie", "dataset", "web-spam", "web-spam.txt")
+    data_file = os.path.join("/mnt", "data", "banlujie", "dataset", dataset_name, dataset_name + ".txt")
+    pt_file = os.path.join("/mnt", "data", "banlujie", "dataset", dataset_name, "subgraph.pt")
+    if os.path.exists(pt_file):
+        subgraph_sets = torch.load(pt_file)
+    else:
         graph, _, _ = meta_graph_load(data_file)
-        query_graphs, num_queries, size_num, pattern_num, _ = load_queries(
-            "/mnt/data/banlujie/dataset/web-spam/query_graph",
-            "/mnt/data/banlujie/dataset/web-spam/label", dataname="web-spam", submode=False)
+
         subgraph_sets = subgraph_construction(graph, data_file)
-        graph_batch = Batch.from_data_list(subgraph_sets)
-        motif_list = [item for sublist in list(query_graphs.values()) for item in
-                      sublist]  # list(query_graphs.values())
-        motif_batch = Batch.from_data_list(motif_list)
-        motif_batch.edge_attr = motif_batch.edge_attr.to(torch.float32)
-        num_instances = len(motif_list)
-        random.shuffle(motif_list)
-        train_sets = motif_batch[: int(num_instances * train_ratio)]
-        # merge to all_train_sets
-        val_sets = motif_batch[int(num_instances * train_ratio): int(num_instances * (train_ratio + val_ratio))]
-        test_sets = motif_batch[int(num_instances * (train_ratio + val_ratio)):]
-        train_loader, val_loader, test_loader = to_dataloader(train_sets, batch_size=batch_size), to_dataloader(
-            val_sets, batch_size=batch_size), to_dataloader(test_sets, batch_size=batch_size)
+    graph_batch = Batch.from_data_list(subgraph_sets)
+    query_load_path = os.path.join("/mnt/data/banlujie/dataset", dataset_name, "query_graph")
+    true_card_load_path = os.path.join("/mnt/data/banlujie/dataset", dataset_name, "label")
+    query_graphs, num_queries, size_num, pattern_num, _ = load_queries(
+        query_load_path, true_card_load_path, dataname=dataset_name, submode=False)
+    motif_list = [item for sublist in list(query_graphs.values()) for item in
+                  sublist]  # list(query_graphs.values())
+    motif_batch = Batch.from_data_list(motif_list)
+    motif_batch.edge_attr = motif_batch.edge_attr.to(torch.float32)
+    num_instances = len(motif_list)
+    random.shuffle(motif_list)
+    train_sets = motif_batch[: int(num_instances * train_ratio)]
+    # merge to all_train_sets
+    val_sets = motif_batch[int(num_instances * train_ratio): int(num_instances * (train_ratio + val_ratio))]
+    test_sets = motif_batch[int(num_instances * (train_ratio + val_ratio)):]
+    train_loader, val_loader, test_loader = to_dataloader(train_sets, batch_size=batch_size), to_dataloader(
+        val_sets, batch_size=batch_size), to_dataloader(test_sets, batch_size=batch_size)
     return graph_batch, train_loader, val_loader, test_loader
 
 
@@ -369,9 +385,12 @@ def data_split(graphs, train_ratio, val_ratio, seed=1):
     num_instances = len(graphs)
     random.shuffle(graphs)
     train_sets = graphs[: int(num_instances * train_ratio)]
+    # train_sets = Batch.from_data_list(train_sets)
     # merge to all_train_sets
     val_sets = graphs[int(num_instances * train_ratio): int(num_instances * (train_ratio + val_ratio))]
+    # val_sets = Batch.from_data_list(val_sets)
     test_sets = graphs[int(num_instances * (train_ratio + val_ratio)):]
+    # test_sets = Batch.from_data_list(test_sets)
     return train_sets, val_sets, test_sets
 
 
