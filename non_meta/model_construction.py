@@ -22,7 +22,7 @@ class Pipeline(torch.nn.Module):
         if self.mnn_type == "graphormer":
             self.motifnn = Graphormer(num_layers=m_layer_num)
         else:
-            self.motifnn = MotifGNN(num_layers=m_layer_num, num_g_hid=64, num_e_hid=64, out_g_ch=hid_dim,
+            self.motifnn = MotifGNN(num_layers=m_layer_num, num_g_hid=32, num_e_hid=32, out_g_ch=hid_dim,
                                     model_type="NNGINConcat",
                                     dropout=0.2)
         self.project_head = CCANet(hid_dim, hid_dim, 32)
