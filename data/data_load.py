@@ -1,18 +1,21 @@
 import math
 import random
 import os
+import sys
+
+from data.synthetic_data import SynDataset
+
+sys.path.append(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
 import pickle
 import time
-from os.path import dirname
 
-from pyarrow.dataset import dataset
 from tqdm import tqdm
 import numpy as np
 import torch
 import networkx as nx
 from torch_geometric.utils import from_networkx
 from torch_geometric.data.batch import Batch
-from torch_geometric.loader import DataLoader
+from torch_geometric.loader import DataLoader, NeighborLoader
 from torch_geometric.datasets import QM9
 from gensim.models import KeyedVectors
 from sklearn.preprocessing import MinMaxScaler
@@ -97,7 +100,6 @@ def meta_graph_load(file_name):
     """
     dir_name = os.path.dirname(file_name)
     name_file = os.path.basename(file_name)
-    file = open(file_name)
     nodes_list = []
     edges_list = []
     if os.path.exists(
@@ -111,16 +113,16 @@ def meta_graph_load(file_name):
     elif file_name.endswith("web-spam.txt"):
         node_fea_np = load_embeddings(os.path.join("/mnt", "data", "banlujie", "dataset", "web-spam",
                                                    "web-spam.emb"))  # align with pretrained GNN
-        graph = graph_file_reader(edges_list, file)
+        graph = graph_file_reader(edges_list, file_name)
     else:
-        graph = graph_file_reader(edges_list, file)
-    file.close()
+        graph = graph_file_reader(edges_list, file_name)
 
-    graph, betweenness_centrality, degree_centrality, eigenvector_centrality, pagerank = centrality_cal(graph)
+    graph, degree_centrality, betweenness_centrality, eigenvector_centrality, pagerank = centrality_cal(graph)
     for i in range(len(graph.nodes)):
         graph.nodes[i]['x'] = node_fea_np[i] if file_name.endswith("web-spam.txt") else 0
         graph.nodes[i]['degree_centrality'] = degree_centrality[i]
         graph.nodes[i]['betweenness_centrality'] = betweenness_centrality[i]
+        graph.nodes[i]['pagerank'] = pagerank[i]
         graph.nodes[i]['eigenvector_centrality'] = eigenvector_centrality[i] if type(
             eigenvector_centrality) == dict else -1
     pickle.dump(graph,
@@ -131,30 +133,36 @@ def meta_graph_load(file_name):
 def centrality_cal(graph):
     degree_centrality = nx.degree_centrality(graph, backend="cugraph")
     betweenness_centrality = nx.betweenness_centrality(graph, backend="cugraph")
+    print("Calculating eigenvector...\n")
     s = time.time()
     try:
         eigenvector_centrality = nx.eigenvector_centrality(graph, backend="cugraph")
     except nx.PowerIterationFailedConvergence:
         eigenvector_centrality = -1
     et = time.time()
+    print(" eigenvector done!\n")
     eigen_cal_time = et - s
+    print("Calculating pagerank...\n")
     ps = time.time()
     pagerank = nx.pagerank(graph, backend="cugraph")
     pet = time.time()
+    print(" pagerank done...\n")
     pg_cal_time = pet - ps
     print("eigenvector centrality cal time:{:.3f}\n pagerank cal time:{:.3f}\n".format(eigen_cal_time, pg_cal_time))
-    return graph, betweenness_centrality, degree_centrality, eigenvector_centrality, pagerank
+    return graph, degree_centrality, betweenness_centrality, eigenvector_centrality, pagerank
 
 
 def graph_file_reader(edges_list, file):
-    next(file)
-    for line in file:
-        tokens = line.strip().split(" ")
-        src = int(tokens[0])
-        dst = int(tokens[1])
-        edges_list.append([src, dst, {"edge_attr": 0.0}])
+    dir_name = os.path.dirname(file)
+    name_file = os.path.basename(file)
     graph = nx.Graph()
-    graph.add_edges_from(edges_list)
+    with open(file, "r") as file:
+        next(file)
+        for line in file:
+            tokens = line.strip().split(" ")
+            src = int(tokens[0])
+            dst = int(tokens[1])
+            graph.add_edge(src, dst, edge_attr=0.0)
     return graph
 
 
@@ -266,20 +274,21 @@ def meta_dataset_load(dataset_name):
     return graph
 
 
-def single_graph_loader(graph=None, data_file=None, train_ratio=0.8, val_ratio=0.1):
-    if os.path.exists(os.path.dirname(data_file) + "/subgraph.pt"):
+def single_graph_loader(graph=None, data_file=None, train_ratio=0.8, val_ratio=0.1, few_shot=False, shot_num=10, k=1,
+                        ana_mode=False):
+    if os.path.exists(os.path.dirname(data_file) + "/subgraph.pt") and ana_mode == False:
         subgraph_sets = torch.load(os.path.dirname(data_file) + "/subgraph.pt")
     else:
-        subgraph_sets = subgraph_construction(graph, data_file)
-    trainsets, val_sets, test_sets = data_split(subgraph_sets, train_ratio, val_ratio)
+        subgraph_sets = subgraph_construction(graph, data_file, k=k)
+    trainsets, val_sets, test_sets = data_split(subgraph_sets, train_ratio, val_ratio, few_shot=False, shot_num=10)
     return trainsets, val_sets, test_sets
 
 
-def subgraph_construction(graph=None, data_file=None):
+def subgraph_construction(graph=None, data_file=None, k=1):
     subgraph_sets = []
     num_nodes = graph.number_of_nodes()
     for node in graph.nodes():
-        sub_graph = k_hop_induced_subgraph(graph, node)
+        sub_graph = k_hop_induced_subgraph(graph, node, k=k)
         if sub_graph.number_of_nodes() == 0:
             continue
         sub_graph = from_networkx(sub_graph, group_node_attrs=['x'])
@@ -330,9 +339,20 @@ def dataset_load(dataset_name, batch_size=256):
     return train_set, val_set, test_set
 
 
-def importance_graph_load(dataset_name, batch_size=16, task="importance", train_ratio=0.8, val_ratio=0.1):
+def synthetic_graph_load(dataset_name, batch_size=1024, train_ratio=0.8, val_ratio=0.1):
+    data = SynDataset(name=dataset_name, filepath=dataset_name)[0]
+    train_loader = NeighborLoader(data, num_neighbors=[-1], input_nodes=data.train_mask, batch_size=batch_size,
+                                  shuffle=True)
+    val_loader = NeighborLoader(data, num_neighbors=[-1], input_nodes=data.val_mask, shuffle=False, batch_size=1024)
+    test_loader = NeighborLoader(data, num_neighbors=[-1], input_nodes=data.test_mask, shuffle=False, batch_size=1024)
+    return train_loader, val_loader, test_loader
+
+
+def importance_graph_load(dataset_name, batch_size=16, task="importance", train_ratio=0.8, val_ratio=0.1,
+                          few_shot=False, shot_num=10, k=1, ana_mode=True):
     data_file = os.path.join("/mnt", "data", "banlujie", "dataset", dataset_name, dataset_name + ".txt")
-    if os.path.exists(os.path.join("/mnt", "data", "banlujie", "dataset", dataset_name, "subgraph.pt")):
+    if os.path.exists(
+            os.path.join("/mnt", "data", "banlujie", "dataset", dataset_name, "subgraph.pt")) and ana_mode == False:
         train_set, val_set, test_set = single_graph_loader(
             data_file=os.path.join("/mnt", "data", "banlujie", "dataset", dataset_name, dataset_name + ".txt"))
     else:
@@ -340,11 +360,17 @@ def importance_graph_load(dataset_name, batch_size=16, task="importance", train_
             data_file)
         # node_fea_np = load_embeddings(os.path.join("/mnt", "8t_data", "banlujie", "dataset", "web-spam",
         #                                            "web-spam.emb"))  # align with pretrained GNN
-        train_set, val_set, test_set = single_graph_loader(graph, data_file,
-                                                           train_ratio=train_ratio, val_ratio=val_ratio)
-    train_loader, val_loader, test_loader = to_dataloader(train_set, batch_size=batch_size), to_dataloader(val_set,
-                                                                                                           shuffle=False), to_dataloader(
-        test_set, shuffle=False)
+        if few_shot:
+            train_set, val_set, test_set = single_graph_loader(graph, data_file, train_ratio, val_ratio,
+                                                               few_shot=few_shot, shot_num=10)
+        else:
+            train_set, val_set, test_set = single_graph_loader(graph, data_file,
+                                                               train_ratio=train_ratio, val_ratio=val_ratio, k=k,
+                                                               ana_mode=ana_mode)
+
+    train_loader, val_loader, test_loader = (to_dataloader(train_set, batch_size=batch_size),
+                                             to_dataloader(val_set, shuffle=False),
+                                             to_dataloader(test_set, shuffle=False))
     return train_loader, val_loader, test_loader
 
 
@@ -366,17 +392,19 @@ def graph_split(graph_batch, train_ratio, val_ratio):
     return train_sets, val_sets, test_sets
 
 
-def counting_graph_load(dataset_name, batch_size=16, task="localcounting", train_ratio=0.8, val_ratio=0.1):
+def counting_graph_load(dataset_name, batch_size=16, task="localcounting", train_ratio=0.8, val_ratio=0.1,
+                        k=2, ana_mode=False):
     data_file = os.path.join("/mnt", "data", "banlujie", "dataset", dataset_name, dataset_name + ".txt")
     pt_file = os.path.join("/mnt", "data", "banlujie", "dataset", dataset_name, "subgraph.pt")
-    if os.path.exists(pt_file):
+    if os.path.exists(pt_file) and ana_mode == False:
         subgraph_sets = torch.load(pt_file)
     else:
         graph, _, _ = meta_graph_load(data_file)
 
-        subgraph_sets = subgraph_construction(graph, data_file)
+        subgraph_sets = subgraph_construction(graph, data_file, k=k)
     graph_batch = Batch.from_data_list(subgraph_sets)
     train_graph_set, val_graph_set, test_graph_set = graph_split(graph_batch, train_ratio=0.8, val_ratio=0.1)
+
     query_load_path = os.path.join("/mnt/data/banlujie/dataset", dataset_name, "query_graph")
     true_card_load_path = os.path.join("/mnt/data/banlujie/dataset", dataset_name, "label")
     query_graphs, num_queries, size_num, pattern_num, _ = load_queries(
@@ -387,33 +415,35 @@ def counting_graph_load(dataset_name, batch_size=16, task="localcounting", train
     motif_batch.edge_attr = motif_batch.edge_attr.to(torch.float32)
     num_instances = len(motif_list)
     random.shuffle(motif_list)
+
     train_sets = motif_batch[: int(num_instances * train_ratio)]
-    # merge to all_train_sets
     val_sets = motif_batch[int(num_instances * train_ratio): int(num_instances * (train_ratio + val_ratio))]
     test_sets = motif_batch[int(num_instances * (train_ratio + val_ratio)):]
     train_loader, val_loader, test_loader = to_dataloader(train_sets, batch_size=batch_size), to_dataloader(
         val_sets, batch_size=batch_size), to_dataloader(test_sets, batch_size=batch_size)
-    return train_graph_set, val_graph_set, test_graph_set, train_loader, val_loader, test_loader
+    return Batch.from_data_list(train_graph_set), Batch.from_data_list(val_graph_set), Batch.from_data_list(
+        test_graph_set), train_loader, val_loader, test_loader
 
 
 def to_dataloader(dataset, batch_size=1, shuffle=True, num_workers=16):
     return DataLoader(dataset, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers)
 
 
-def data_split(graphs, train_ratio, val_ratio, seed=1):
+def data_split(graphs, train_ratio, val_ratio, few_shot=False, shot_num=10, seed=1):
     assert train_ratio + val_ratio <= 1.0, "Error data split ratio!"
     random.seed(seed)
     train_sets, val_sets, test_sets = [], [], []
 
     num_instances = len(graphs)
     random.shuffle(graphs)
-    train_sets = graphs[: int(num_instances * train_ratio)]
-    # train_sets = Batch.from_data_list(train_sets)
-    # merge to all_train_sets
-    val_sets = graphs[int(num_instances * train_ratio): int(num_instances * (train_ratio + val_ratio))]
-    # val_sets = Batch.from_data_list(val_sets)
-    test_sets = graphs[int(num_instances * (train_ratio + val_ratio)):]
-    # test_sets = Batch.from_data_list(test_sets)
+    if few_shot:
+        train_sets = graphs[:shot_num]
+        val_sets = graphs[shot_num:int(num_instances * 0.1) + shot_num]
+        test_sets = graphs[int(num_instances * 0.1) + shot_num:]
+    else:
+        train_sets = graphs[: int(num_instances * train_ratio)]
+        val_sets = graphs[int(num_instances * train_ratio): int(num_instances * (train_ratio + val_ratio))]
+        test_sets = graphs[int(num_instances * (train_ratio + val_ratio)):]
     return train_sets, val_sets, test_sets
 
 
@@ -485,8 +515,8 @@ def meta_motif_load(dataset_name, shot_num=5, task_pairs=None):
             yield task_1, task_2, support, query[0], len(task_pairs), query[0].y
     if dataset_name in ["web-spam"]:
         query_graphs, num_queries, size_num, pattern_num, _ = load_queries(
-            "/mnt/8t_data/banlujie/dataset/web-spam/query_graph",
-            "/mnt/8t_data/banlujie/dataset/web-spam/label", dataname="web-spam")
+            "/mnt/data/banlujie/dataset/web-spam/query_graph",
+            "/mnt/data/banlujie/dataset/web-spam/label", dataname="web-spam")
         train_set, remaining_data = [], []
         # select each pattern and size, here use 4 node and 8 node as example
         i = 0
@@ -583,7 +613,6 @@ def extract_size_from_directory_name(file_name):
 
 if __name__ == "__main__":
     edge_lists = []
-    file = open(os.path.join("/mnt", "data", "banlujie", "dataset", "youtube", "youtube.txt"))
+    file = os.path.join("/mnt", "data", "banlujie", "dataset", "youtube", "youtube.txt")
     graph = graph_file_reader(edge_lists, file)
-    file.close()
     centrality_cal(graph)

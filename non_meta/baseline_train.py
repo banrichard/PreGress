@@ -15,7 +15,8 @@ from torch.nn.functional import huber_loss
 from torch_geometric.loader import DataLoader, NeighborLoader
 from torch.utils.tensorboard import SummaryWriter
 from data.data_load import importance_graph_load, counting_graph_load
-from model.graphconv import Backbone
+from data.dataset import PretrainDataset
+from model.baselinemodel import BaseGNN
 
 warnings.filterwarnings("ignore")
 torch.autograd.set_detect_anomaly(True)
@@ -27,7 +28,7 @@ train_config = {
     "gpu_id": 5,
     "num_workers": 16,
     "epochs": 100,
-    "batch_size": 1024,
+    "batch_size": 32,
     "update_every": 4,  # actual batch_sizer = batch_size * update_every
     "print_every": 10,
     "init_emb": True,  # None, Normal
@@ -49,7 +50,7 @@ train_config = {
     "attr_ratio": 0.5,
     "decay_patience": 20,
     "max_grad_norm": 8,
-    "model": "SAGE",  # Graphormer
+    "model": "GAT",  # Graphormer
     "emb_dim": 32,
     "activation_function": "relu",  # sigmoid, softmax, tanh, relu, leaky_relu, prelu, gelu
     # MeanAttnPredictNet, SumAttnPredictNet, MaxAttnPredictNet,
@@ -138,11 +139,11 @@ def train(
         batch.x = batch.x.to(torch.float32)
         s = time.time()
         if config['model'] == "Graphormer":
-            pred, importance_loss = model(batch)[:16]
+            pred, importance_loss = model(batch)
             total_loss_per_step = importance_loss
         else:
-            importance_loss, attr_loss = model(batch)[:16]
-            total_loss_per_step = importance_loss + attr_loss
+            importance_loss = model(batch)
+            total_loss_per_step = importance_loss
             total_loss_per_step.backward()
             if (i + 1) % config['update_every'] == 0:
                 optimizer.step()
@@ -207,7 +208,7 @@ def evaluate(model, data_type, data_loader, config, logger=None, writer=None):
     total_cnt = 1e-6
 
     evaluate_results = {"mean": {"importance": list()},
-                        "error": {"importance_loss": list(), "attr_loss": list()},
+                        "error": {"importance_loss": list()},
                         "time": {"avg": list(), "total": 0.0}}
     model.eval()
     model = model.to("cpu")
@@ -222,8 +223,8 @@ def evaluate(model, data_type, data_loader, config, logger=None, writer=None):
                 pred, importance_loss = model(batch)
                 bp_loss = importance_loss
             else:
-                importance_loss, attr_loss = model(batch)
-                bp_loss = importance_loss + attr_loss
+                importance_loss = model(batch)
+                bp_loss = importance_loss
             et = time.time()
             evaluate_results["time"]["total"] += et - st
             avg_t = et - st
@@ -232,7 +233,6 @@ def evaluate(model, data_type, data_loader, config, logger=None, writer=None):
             bp_loss_item = bp_loss.mean().item()
             total_bp_loss += bp_loss_item
             evaluate_results["error"]["importance_loss"].extend(importance_loss.view(-1).tolist())
-            evaluate_results["error"]["attr_loss"].extend(attr_loss.view(-1).tolist())
             et = time.time()
             total_time += et - st
             total_cnt += 1
@@ -361,10 +361,10 @@ if __name__ == "__main__":
         # load data
         # os.makedirs(train_config["save_data_dir"], exist_ok=True)
     # decompose the query
-    if train_config['dataset'] == "flixster" or train_config['dataset'] == "youtube":
-        data = PretrainDataset(name=train_config['dataset'], filepath=train_config['dataset'])[0][0] if train_config[
-                                                                                                            'dataset'] == "flixster" else \
-            PretrainDataset(name=train_config['dataset'], filepath=train_config['dataset'])[0]
+    if train_config['dataset'] == "flixster":
+        data = PretrainDataset(name=train_config['dataset'], filepath=train_config['dataset'])[0][0]
+    else:
+        data = PretrainDataset(name=train_config['dataset'], filepath=train_config['dataset'])[0]
         kwargs = dict(
             data=data,
             num_neighbors=[10, 10] * 2,
@@ -372,12 +372,9 @@ if __name__ == "__main__":
             num_workers=8,
             pin_memory=True
         )
-        train_idx = data.train_mask.nonzero(as_tuple=False).view(-1) if train_config[
-                                                                            'dataset'] == "youtube" else data.train_idx
-        val_idx = data.val_mask.nonzero(as_tuple=False).view(-1) if train_config[
-                                                                        'dataset'] == "youtube" else data.val_idx
-        test_idx = data.val_mask.nonzero(as_tuple=False).view(-1) if train_config[
-                                                                         'dataset'] == "youtube" else data.test_idx
+        train_idx = data.train_mask.nonzero(as_tuple=False).view(-1)
+        val_idx = data.val_mask.nonzero(as_tuple=False).view(-1)
+        test_idx = data.val_mask.nonzero(as_tuple=False).view(-1)
         train_loader = NeighborLoader(
             input_nodes=train_idx,
             shuffle=True,
@@ -396,10 +393,10 @@ if __name__ == "__main__":
     # config['init_g_dim'] = graph.x.size(1)
     # train_config.update({'init_g_dim': graph.x.size(1)})
     # construct the model
-    train_config["init_g_dim"] = next(iter(train_loader)).x.shape[1]
+    # train_config["init_g_dim"] = next(iter(train_loader)).x.shape[1]
     if train_config["model"] == "GIN" or train_config["model"] == "GAT" or train_config['model'] == "GCN" or \
-            train_config["model"] == "SAGE":
-        model = Backbone(
+            train_config["model"] == "GraphSage":
+        model = BaseGNN(
             train_config['model'],
             train_config["graph_num_layers"],
             train_config["init_g_dim"],

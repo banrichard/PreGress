@@ -50,8 +50,8 @@ def rename_files_with_labels(pattern_graph_dir, label_dir):
 
 
 # Set the directory paths
-pattern_graph_dir = '/mnt/data/banlujie/dataset/gowalla/query_graph/7voc'
-label_dir = '/mnt/data/banlujie/dataset/gowalla/label/7voc'
+pattern_graph_dir = '/mnt/data/banlujie/dataset/youtube/query_graph/7voc'
+label_dir = '/mnt/data/banlujie/dataset/youtube/label/7voc'
 
 # Call the function to rename files and their corresponding labels
 rename_files_with_labels(pattern_graph_dir, label_dir)

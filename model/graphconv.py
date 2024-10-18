@@ -33,7 +33,7 @@ class Backbone(nn.Module):
             return GCNConv
         elif self.model_type == "GAT":
             return GATConv
-        elif self.model_type == "SAGE":
+        elif self.model_type == "GraphSage":
             return SAGEConv
         elif self.model_type == "GIN":
             return lambda in_ch, hid_ch: GINConv(nn=nn.Sequential(
@@ -43,13 +43,13 @@ class Backbone(nn.Module):
         else:
             raise NotImplementedError("Current do not support!")
 
-    def forward(self, x, edge_index, edge_attr):
+    def forward(self, x, edge_index, edge_attr=None):
         for i in range(self.num_layers):
             if self.model_type == "GIN" or self.model_type == "GINE" or self.model_type == "GAT" \
-                    or self.model_type == "SAGE":
+                    or self.model_type == "GraphSage":
                 x = self.convs[i](x, edge_index)  # for GIN and GINE
             elif self.model_type == "Graph" or self.model_type == "GCN":
-                x = self.convs[i](x, edge_index, edge_weight=edge_attr)
+                x = self.convs[i](x, edge_index)
             elif self.model_type == "NN" or self.model_type == "NNGIN" or self.model_type == "NNGINConcat":
                 x = self.convs[i](x=x, edge_index=edge_index, edge_attr=edge_attr)
             else:

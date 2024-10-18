@@ -1,58 +1,19 @@
 import networkx as nx
 import torch
+from networkx import eigenvector_centrality
+from torch_geometric.data.remote_backend_utils import num_nodes
 from torch_geometric.datasets import ZINC, QM9
 from torch_geometric.utils import to_networkx, from_networkx
 from torch_geometric.data import Data, InMemoryDataset
-import torch_geometric.transforms as T
+from torch_geometric.datasets import FakeDataset
 import os
+import sys
+
+sys.path.append(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
 import os.path as osp
 
 from data.data_load import meta_graph_load
 
-
-def dataset_load(name="ZINC", type="train"):
-    if name == "ZINC":
-        data = ZINC(root=os.path.join("/mnt/data/lujie/metacounting_dataset", name), split=type)
-    elif name == "QM9":
-        data = QM9(root=os.path.join("/mnt/data/lujie/metacounting_dataset", name))
-    importance_cal(data)
-    # transform the PyG data into networkX
-    # if not os.path.exists(os.path.join("/mnt/data/lujie/metacounting_dataset", "networkx", name)):
-    #     os.mkdir(os.path.join("/mnt/data/lujie/metacounting_dataset", "networkx", name))
-    # for i in range(len(data)):
-    #     graph_to_file(data[i], name, i)
-    return data
-
-
-def importance_cal(data):
-    for cnt, d in enumerate(data):
-        graph = to_networkx(d, node_attrs=['x'], edge_attrs=['edge_attr'], to_undirected=True)
-        # the centralities are dictionaries
-        degree_centrality = nx.degree_centrality(graph)
-        betweenness_centrality = nx.betweenness_centrality(graph)
-        try:
-            eigenvector_centrality = nx.eigenvector_centrality(graph)
-        except nx.PowerIterationFailedConvergence:
-            eigenvector_centrality = -1
-        # add them to original node feature as labels
-        for i in range(len(graph.nodes)):
-            graph.nodes[i]['degree_centrality'] = degree_centrality[i]
-            graph.nodes[i]['betweenness_centrality'] = betweenness_centrality[i]
-            graph.nodes[i]['eigenvector_centrality'] = eigenvector_centrality[i] if type(
-                eigenvector_centrality) == dict else -1
-        graph_to_file(graph, "QM9", cnt)
-
-
-def graph_to_file(graph, name, i):
-    if not os.path.exists(os.path.join("/mnt/data/lujie/metacounting_dataset", name, "networkx")):
-        os.mkdir(os.path.join("/mnt/data/lujie/metacounting_dataset", name, "networkx"))
-    with open("/mnt/data/lujie/metacounting_dataset/" + name + "/networkx/" + str(i) + ".txt", "w") as file:
-        for node in graph.nodes(data=True):
-            file.write("v,{},{},{},{},{}\n".format(node[0], node[1]['x'], node[1]['degree_centrality'],
-                                                   node[1]['eigenvector_centrality'],
-                                                   node[1]['betweenness_centrality']))
-        for edge in graph.edges(data=True):
-            file.write("e,{},{},{}\n".format(edge[0], edge[1], edge[2]['edge_attr']))
 
 
 class PretrainDataset(InMemoryDataset):
@@ -115,13 +76,11 @@ class PretrainDataset(InMemoryDataset):
         graph, _, _ = meta_graph_load(osp.join(self.root, self.filepath, self.name + ".txt"))
         data = from_networkx(graph)
         data.x = data.x.unsqueeze(1)
+        data.edge_attr = data.edge_attr.unsqueeze(1)
         data.degree_centrality = data.degree_centrality.unsqueeze(1)
-        data.betweenness_centrality = data.degree_centrality.unsqueeze(1)
+        data.pagerank = data.pagerank.unsqueeze(1)
         data.eigenvector_centrality = data.eigenvector_centrality.unsqueeze(1)
         data.train_mask, data.val_mask, data.test_mask = self.dataset_split(data)
         torch.save(data, self.processed_paths[0])
 
 
-if __name__ == "__main__":
-    data = PretrainDataset(name="youtube", filepath="youtube")
-    print(len(data[0].x))

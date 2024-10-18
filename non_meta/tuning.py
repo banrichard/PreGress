@@ -3,11 +3,13 @@ import gc
 import json
 import logging
 import os
-import sys
 import time
 import warnings
+import sys
 
+sys.path.append(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
 import numpy as np
+import psutil
 import torch
 import torch.nn.functional as F
 from torch import optim
@@ -20,14 +22,13 @@ from non_meta.model_construction import ImportancePipeline, Pipeline
 warnings.filterwarnings("ignore")
 torch.autograd.set_detect_anomaly(True)
 INF = float("inf")
-
 finetune_config = {
     "base": 2,
     "cuda": True,
-    "gpu_id": 5,
+    "gpu_id": 1,
     "num_workers": 16,
     "epochs": 50,
-    "batch_size": 256,
+    "batch_size": 1024,
     "update_every": 1,  # actual batch_sizer = batch_size * update_every
     "print_every": 100,
     "init_emb": True,  # None, Normal
@@ -71,22 +72,24 @@ finetune_config = {
     "graph_num_layers": 5,
     "queryset_dir": "queryset",
     "true_card_dir": "label",
-    "dataset": "youtube",
+    "dataset": "web-spam",
     "data_dir": "dataset",
-    "dataset_name": "youtube",
+    "dataset_name": "web-spam",
     "save_res_dir": "result",
     "save_model_dir": "saved_model",
     "task": "importance",
     "test_only": False,
+    "hop_number": 1,
+    "few_shot": False,
+    "shot_num": 10,
+    "ana_mode": False,
+    "ablation": "no_prompt"
 }
 
 
 def train(model, optimizer, scheduler, data_type, data_loader, device, config, epoch, logger=None, writer=None,
           bottleneck=False, graph=None):
     global bp_crit, reg_crit
-
-    total_var_loss = 0
-    total_reg_loss = 0
     total_bp_loss = 0
     total_cnt = 1e-6
     if config["reg_loss"] == "MAE":
@@ -125,50 +128,59 @@ def train(model, optimizer, scheduler, data_type, data_loader, device, config, e
     cnt = 0
     s = time.time()
     # split the graph into several small graphs
-    for (i,batch) in enumerate(data_loader):
-        batch = batch.to(device)
-        if config['task'] == "importance":
-            batch.x = batch.x.to(torch.float32)
-            # batch.y_eigen = minmax(batch.y_eigen)
-            pred = model(batch)
-            importance_loss = bp_crit(pred, batch.y_eigen)
-            importance_loss.backward()
-        elif config['task'] == "localcounting":
-            pred, reg = model(graph, batch)
-            counting_loss = bp_crit(pred, batch.y)
-            bp_loss = (counting_loss + finetune_config["trade_off"] * reg) / len(batch)
-            bp_loss.backward()
-        bp_loss_item = importance_loss.item() if config['task'] == "importance" else bp_loss.item()
-        total_bp_loss += bp_loss_item
+    for (train_id, train_part) in enumerate(graph):
+        for (i, batch) in enumerate(data_loader):
+            batch = batch.to(device)
+            if config['task'] == "importance":
+                batch.x = batch.x.to(torch.float32)
+                # batch.y_eigen = minmax(batch.y_eigen)
+                pred = model(batch)
+                importance_loss = bp_crit(pred, batch.y_eigen)
+                importance_loss.backward()
+                logger.info(
+                    "data_type: {:<5s}\t\tCUDA cost: {:.3f} MB\t Memory cost: {:.3f} MB\t (epoch: {:0>3d})".format(
+                        "train", torch.cuda.memory.memory_allocated(device) / (1024 * 1024),
+                        float(psutil.Process(os.getpid()).memory_info().rss / (1024 ** 2)), epoch))
+            elif config['task'] == "localcounting":
+                pred, reg = model(train_part.to(device), batch)
+                counting_loss = bp_crit(pred, batch.y)
+                bp_loss = (counting_loss + finetune_config["trade_off"] * reg) / len(batch)
+                bp_loss.backward()
+                logger.info(
+                    "data_type: {:<5s}\t\tCUDA cost: {:.3f} MB\t Memory cost: {:.3f} MB\t (epoch: {:0>3d})".format(
+                        "train", torch.cuda.memory.memory_allocated(device) / (1024 * 1024),
+                        float(psutil.Process(os.getpid()).memory_info().rss / (1024 ** 2)), epoch))
+            bp_loss_item = importance_loss.item() if config['task'] == "importance" else bp_loss.item()
+            total_bp_loss += bp_loss_item
 
-        if writer:
-            writer.add_scalar(
-                "%s/BP-%s" % (data_type, config["bp_loss"]),
-                bp_loss_item,
-                epoch * epoch_step + i,
-            )
+            if writer:
+                writer.add_scalar(
+                    "%s/BP-%s" % (data_type, config["bp_loss"]),
+                    bp_loss_item,
+                    epoch * epoch_step + i,
+                )
 
-        if logger and (
-                (i / len(batch)) % config["print_every"] == 0
-                or i == epoch_step - 1
-        ):
-            logger.info(
-                "epoch: {:0>3d}/{:0>3d}\tdata_type: {:<5s}\tbatch: {:0>5d}/{:0>5d}\tbp loss: {:.5f}\t".format(
-                    int(epoch),
-                    int(config["epochs"]),
-                    data_type,
-                    int(i / len(batch)),
-                    int(epoch_step / len(batch)),
-                    float(bp_loss_item),
+            if logger and (
+                    (i / len(batch)) % config["print_every"] == 0
+                    or i == epoch_step - 1
+            ):
+                logger.info(
+                    "epoch: {:0>3d}/{:0>3d}\tdata_type: {:<5s}\tbatch: {:0>5d}/{:0>5d}\tbp loss: {:.5f}\t".format(
+                        int(epoch),
+                        int(config["epochs"]),
+                        data_type,
+                        int(i / len(batch)),
+                        int(epoch_step / len(batch)),
+                        float(bp_loss_item),
+                    )
                 )
-            )
-        if (i + 1) % config["batch_size"] == 0 or cnt == epoch_step - 1:
-            if config["max_grad_norm"] > 0:
-                torch.nn.utils.clip_grad_norm_(
-                    model.parameters(), config["max_grad_norm"]
-                )
-            optimizer.step()
-            optimizer.zero_grad()
+            if (i + 1) % config["batch_size"] == 0 or cnt == epoch_step - 1:
+                if config["max_grad_norm"] > 0:
+                    torch.nn.utils.clip_grad_norm_(
+                        model.parameters(), config["max_grad_norm"]
+                    )
+                optimizer.step()
+                optimizer.zero_grad()
         e = time.time()
         total_time += e - s
         total_cnt += 1
@@ -184,7 +196,6 @@ def train(model, optimizer, scheduler, data_type, data_loader, device, config, e
                 epoch, config["epochs"], data_type, mean_bp_loss
             )
         )
-
     gc.collect()
     return mean_bp_loss, total_time
 
@@ -205,34 +216,35 @@ def evaluate(model, data_type, data_loader, config, logger=None, writer=None, gr
     with torch.no_grad():
         # for gbatch in val_graph_loader:
         #     gbatch = gbatch.cuda()
-        for batch_id, batch in enumerate(data_loader):
-            batch = batch.cuda()
-            st = time.time()
-            importance = batch.y_eigen if config['task'] == "importance" else batch.y
-            # importance = minmax(importance)
-            if config['task'] == "localcounting":
-                pred, reg = model(gbatch, batch)
-                counting_loss = huber_loss(pred, batch.y)
-                bp_loss = counting_loss + config['trade_off'] * reg
-            else:
-                pred = model(batch)
-                importance_loss = huber_loss(pred, importance, reduction="mean")
-                bp_loss = importance_loss
-            et = time.time()
-            evaluate_results["time"]["total"] += et - st
-            avg_t = et - st
+        st = time.time()
+        for (val_id, val_part) in enumerate(graph):
+            val_part = val_part.cuda()
+            for batch_id, batch in enumerate(data_loader):
+                batch = batch.cuda()
+                importance = batch.y_eigen if config['task'] == "importance" else batch.y
+                # importance = minmax(importance)
+                if config['task'] == "localcounting":
+                    pred, reg = model(val_part, batch)
+                    counting_loss = huber_loss(pred, batch.y)
+                    bp_loss = counting_loss + config['trade_off'] * reg
+                else:
+                    pred = model(batch)
+                    importance_loss = huber_loss(pred, importance, reduction="mean")
+                    bp_loss = importance_loss
+                et = time.time()
+                evaluate_results["time"]["total"] += et - st
+                avg_t = (et - st) / len(batch)
 
-            evaluate_results["time"]["avg"].extend([avg_t])
-            counting_loss_item = counting_loss.mean().item() if config['task'] == "localcounting" else None
-            bp_loss_item = bp_loss.mean().item()
-            total_bp_loss += bp_loss_item
-            evaluate_results["error"]["importance_loss"].extend([bp_loss_item])
-            et = time.time()
-            total_time += et - st
-            total_cnt += len(batch)
+                evaluate_results["time"]["avg"].extend([avg_t])
+                counting_loss_item = counting_loss.mean().item() if config['task'] == "localcounting" else None
+                bp_loss_item = bp_loss.mean().item()
+                total_bp_loss += bp_loss_item
+                evaluate_results["error"]["importance_loss"].extend([bp_loss_item])
+        total_time += et - st
+        total_cnt += len(batch)
         mean_bp_loss = total_bp_loss / total_cnt
 
-        if logger and batch_id == epoch_step - 1 and config["test_only"] is False:
+        if logger and val_id == epoch_step - 1 and config["test_only"] is False:
             logger.info(
                 "epoch: {:0>3d}/{:0>3d}\tdata_type: {:<5s}\tbatch: {:d}/{:d}\tbp loss: {:.4f}".format(
                     int(epoch),
@@ -243,8 +255,8 @@ def evaluate(model, data_type, data_loader, config, logger=None, writer=None, gr
                     float(bp_loss_item),
                 )
             )
-            # float(var), float(pred_var[0].item())))
-            # "ground: {:.4f}\tpredict: {:.4f}"
+        # float(var), float(pred_var[0].item())))
+        # "ground: {:.4f}\tpredict: {:.4f}"
 
         if logger and config["test_only"] is False:
             logger.info(
@@ -252,7 +264,6 @@ def evaluate(model, data_type, data_loader, config, logger=None, writer=None, gr
                     epoch, config["epochs"], data_type, mean_bp_loss
                 )
             )
-
     gc.collect()
     return mean_bp_loss, evaluate_results, total_time
 
@@ -287,12 +298,14 @@ def model_test(save_model_dir, test_loaders, config, logger, writer, graph=None)
     with open(
             os.path.join(
                 save_model_dir,
-                "%s_%s_%s_pre_trained_%s.json"
+                "%s_%s_%s_pre_trained_%s_%s_%s.json"
                 % (
                         finetune_config["model"],
                         "best_test",
                         finetune_config["dataset"],
-                        finetune_config['task']
+                        finetune_config['task'],
+                        finetune_config['hop_number'],
+                        finetune_config['ablation']
                 ),
             ),
             "w",
@@ -360,23 +373,30 @@ if __name__ == "__main__":
     # decompose the query
     if finetune_config['task'] == "importance":
         train_loader, val_loader, test_loader = importance_graph_load(
-            finetune_config['dataset'], batch_size=finetune_config["batch_size"], train_ratio=0.8, val_ratio=0.1
+            finetune_config['dataset'], batch_size=finetune_config["batch_size"], train_ratio=0.8, val_ratio=0.1,
+            few_shot=finetune_config['few_shot'], shot_num=finetune_config['shot_num'], k=finetune_config['hop_number'],
+            ana_mode=finetune_config['ana_mode']
         )
         finetune_config["init_g_dim"] = next(iter(train_loader)).x.shape[1]
         model = ImportancePipeline(
             input_dim=finetune_config["init_g_dim"], layer_num=finetune_config['graph_num_layers'],
             pre_train_path=os.path.join("..", finetune_config['save_model_dir'],
-                                        "best_epoch_" + finetune_config['model'] + ".pt")
+                                        "best_epoch_" + finetune_config['model'] + ".pt"), frozen_prompt=False
         )
     elif finetune_config['task'] == "localcounting":
         train_graph, val_graph, test_graph, train_loader, val_loader, test_loader = counting_graph_load(
-            finetune_config['dataset'], batch_size=finetune_config["batch_size"], train_ratio=0.8, val_ratio=0.1
+            finetune_config['dataset'], batch_size=finetune_config["batch_size"], train_ratio=0.8, val_ratio=0.1,
+            k=finetune_config['hop_number'],
+            ana_mode=finetune_config['ana_mode']
         )
         model = Pipeline(
             input_dim=finetune_config["init_g_dim"], layer_num=finetune_config['graph_num_layers'],
             pre_train_path=os.path.join("..", finetune_config['save_model_dir'],
                                         "best_epoch_" + finetune_config['model'] + ".pt")
         )
+        train_graph_loader = DataLoader(train_graph, batch_size=finetune_config['batch_size'], shuffle=True)
+        val_graph_loader = DataLoader(val_graph, batch_size=finetune_config['batch_size'], shuffle=False)
+        test_graph_loader = DataLoader(test_graph, batch_size=finetune_config['batch_size'], shuffle=False)
     # config['init_g_dim'] = graph.x.size(1)
     # train_config.update({'init_g_dim': graph.x.size(1)})
     # construct the model
@@ -431,8 +451,11 @@ if __name__ == "__main__":
             logger=logger,
             writer=writer,
             bottleneck=False,
-            graph=train_graph if finetune_config['task'] == "localcounting" else None
+            graph=train_graph_loader if finetune_config['task'] == "localcounting" else None
         )
+        logger.info("data_type: {:<5s}\t\tCUDA cost: {:.3f} MB\t Memory cost: {:.3f} MB\t (epoch: {:0>3d})".format(
+            "train", torch.cuda.memory.memory_allocated(device) / (1024 * 1024),
+            float(psutil.Process(os.getpid()).memory_info().rss / (1024 ** 2)), epoch))
         total_train_time += _time
         if scheduler and (epoch + 1) % finetune_config["decay_patience"] == 0:
             scheduler.step()
@@ -444,15 +467,18 @@ if __name__ == "__main__":
             config=finetune_config,
             logger=logger,
             writer=writer,
-            graph=val_graph if finetune_config['task'] == "localcounting" else None
+            graph=val_graph_loader if finetune_config['task'] == "localcounting" else None
         )
+        logger.info("data_type: {:<5s}\t\tCUDA cost: {:.3f} MB\t Memory cost: {:.3f} MB\t (epoch: {:0>3d})".format(
+            "val", torch.cuda.memory.memory_allocated(device) / (1024 * 1024),
+            float(psutil.Process(os.getpid()).memory_info().rss / (1024 ** 2)), epoch))
         if writer:
             writer.add_scalar(
                 "%s/BP-%s-epoch" % ("val", finetune_config["bp_loss"]), mean_bp_loss, epoch
             )
             total_dev_time += total_time
-        err = best_bp_losses - mean_bp_loss
-        if err > 1e-5:
+
+        if best_bp_losses - mean_bp_loss > 1e-4:
             tolerance_cnt = 0
             best_bp_losses = mean_bp_loss
             # best_reg_epochs["val"] = epoch
@@ -483,7 +509,7 @@ if __name__ == "__main__":
     print("data finish")
     evaluate_results, total_test_time = model_test(
         save_model_dir, test_loader, finetune_config, logger, writer,
-        graph=test_graph if finetune_config['task'] == "localcounting" else None
+        graph=test_graph_loader if finetune_config['task'] == "localcounting" else None
     )
     logger.info(
         "train time: {:.3f}, train time per epoch :{:.3f}, test time: {:.3f}, all time: {:.3f}".format(
