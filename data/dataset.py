@@ -17,7 +17,7 @@ from data.data_load import meta_graph_load
 
 
 class PretrainDataset(InMemoryDataset):
-    def __init__(self, root="/mnt/data/banlujie/dataset", name="flixster", pre_transform=None, transform=None,
+    def __init__(self, root="/mnt/data/dataset", name="flixster", pre_transform=None, transform=None,
                  pre_filter=None,
                  use_edge_attr=False, filepath="flixster", train_ratio=0.8, val_ratio=0.1, test_ratio=0.1):
         self.root = root
