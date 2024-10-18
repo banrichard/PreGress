@@ -16,9 +16,9 @@ class MotifDataset(Dataset):
         self.data_list = self._prepare_data()
 
     def _prepare_data(self):
-        if os.path.exists(os.path.join("/mnt/data/banlujie/dataset", self.dataset_name, self.dataset_name + "counting.pt")):
+        if os.path.exists(os.path.join("/mnt/data/dataset", self.dataset_name, self.dataset_name + "counting.pt")):
             data_list = torch.load(
-                os.path.join("/mnt/data/banlujie", self.dataset_name, self.dataset_name + "counting.pt"))
+                os.path.join("/mnt/data", self.dataset_name, self.dataset_name + "counting.pt"))
         else:
             data_list = []
             for key, motif_pairs in self.motif_gt_data.items():
@@ -29,7 +29,7 @@ class MotifDataset(Dataset):
                         # Create a tuple with the subgraph, motif, and ground truth value
                         data_list.append((self.subgraphs[i], motif, torch.tensor([gt_value])))
             torch.save(data_list,
-                       os.path.join("/mnt/data/banlujie/dataset", self.dataset_name, self.dataset_name + "counting.pt"))
+                       os.path.join("/mnt/data//dataset", self.dataset_name, self.dataset_name + "counting.pt"))
         return data_list
 
 
