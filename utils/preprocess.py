@@ -1,5 +1,35 @@
 import os
 
+import torch
+
+from data.data_load import centrality_cal
+from torch_geometric.utils import negative_sampling, k_hop_subgraph, to_networkx
+
+from data.dataset import MyReddit2, MyFlickr
+
+
+def ogb_to_subgraphs(name):
+    dataset = MyFlickr(root="/mnt/data/banlujie/dataset/flickr")
+
+    # split_idx = dataset.get_idx_split()
+    # train_idx, valid_idx, test_idx = split_idx["train"], split_idx["valid"], split_idx["test"]
+    data = dataset[0]  # pyg graph object    return data
+    graph = to_networkx(data, to_undirected=True)
+    with open("/mnt/data/banlujie/flickr.txt", "w") as f:
+        f.write(f"{graph.number_of_nodes()} {graph.number_of_edges()}\n")
+        for edge in sorted(graph.edges):
+            f.write(f"{edge[0]} {edge[1]}\n")
+
+
+def get_negative_edges(pos_edge_index, num_nodes, num_neg_samples):
+    neg_edge_index = negative_sampling(
+        edge_index=pos_edge_index,
+        num_nodes=num_nodes,
+        num_neg_samples=num_neg_samples,
+        method='normal'
+    )
+    return neg_edge_index
+
 
 def get_backbone_name(file_path):
     file_name = os.path.basename(file_path)  # Returns 'best_epoch_GIN.pt'
@@ -48,3 +78,6 @@ def rename_files_with_labels(pattern_graph_dir, label_dir):
             # Increment the unique ID for the next file
             unique_id += 1
 
+
+if __name__ == "__main__":
+    rename_files_with_labels("/mnt/data/banlujie/dataset/wiki/chameleon/query_graph/5voc","/mnt/data/banlujie/dataset/wiki/chameleon/label/5voc")

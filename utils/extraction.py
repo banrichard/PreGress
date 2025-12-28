@@ -21,9 +21,9 @@ def k_hop_induced_subgraph(graph, node, k=2) -> nx.Graph:
     subgraph.add_nodes_from(node_set)
     subgraph.add_edges_from(edge_set)
     for u in subgraph.nodes():
-        subgraph.nodes[u]['x'] = graph.nodes[u]['x']
+        subgraph.nodes[u]['x'] = graph.nodes[u]['x'] if 'x' in graph.nodes[u] else None
     for u, v in subgraph.edges():
-        subgraph[u][v]["edge_attr"] = graph[u][v]["edge_attr"]
+        subgraph[u][v]["edge_attr"] = graph[u][v]["edge_attr"] if "edge_attr" in graph[u][v] else None
 
     return subgraph
 

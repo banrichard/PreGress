@@ -11,12 +11,13 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 from torch.utils.tensorboard import SummaryWriter
+from torch_geometric.data import DataLoader
+
 from data.data_load import dataset_load
 from data.dataset import PretrainDataset
 from pretrain.GIN_pretrain import GraphTrainer
-from pretrain.graphormer_pretrain import Gphormer
-from torch_geometric.loader import NeighborLoader
-
+from pretrain.graphormer import Gphormer
+from torch_geometric.loader import NeighborLoader, DataListLoader
 
 warnings.filterwarnings("ignore")
 torch.autograd.set_detect_anomaly(True)
@@ -25,10 +26,10 @@ INF = float("inf")
 train_config = {
     "base": 2,
     "cuda": True,
-    "gpu_id": 5,
+    "gpu_id": 3,
     "num_workers": 16,
-    "epochs": 200,
-    "batch_size": 1,
+    "epochs": 50,
+    "batch_size": 16,
     "update_every": 4,  # actual batch_sizer = batch_size * update_every
     "print_every": 10,
     "init_emb": True,  # None, Normal
@@ -69,7 +70,7 @@ train_config = {
     "num_g_hid": 32,
     "num_e_hid": 32,
     "out_g_ch": 32,
-    "graph_num_layers": 5,
+    "graph_num_layers": 10,
     "queryset_dir": "queryset",
     "true_card_dir": "label",
     "dataset": "web-spam",
@@ -77,8 +78,11 @@ train_config = {
     "dataset_name": "web-spam",
     "save_res_dir": "result",
     "save_model_dir": "saved_model",
-
+    "no_subgraph": False,
     "test_only": False,
+    "enhance": True,
+    "attr_only": True,
+    "alpha": 0.1
 }
 
 
@@ -140,11 +144,17 @@ def train(
         batch.x = batch.x.to(torch.float32)
         s = time.time()
         if config['model'] == "Graphormer":
-            pred, importance_loss = model(batch)[:16]
+            pred, importance_loss = model(batch)[:train_config['batch_size']]
             total_loss_per_step = importance_loss
         else:
-            importance_loss, attr_loss = model(batch)[:16]
-            total_loss_per_step = importance_loss + attr_loss
+            importance_loss, attr_loss = model(batch)[:train_config['batch_size']]
+            if train_config['attr_only']:
+                total_loss_per_step = attr_loss
+            elif train_config['enhance']:
+                total_loss_per_step = (1 - train_config['alpha']) * importance_loss + train_config['alpha'] * attr_loss
+            else:
+                total_loss_per_step = importance_loss
+            # total_loss_per_step = importance_loss + attr_loss if not train_config['attr_only'] else importance_loss
             total_loss_per_step.backward()
             if (i + 1) % config['update_every'] == 0:
                 optimizer.step()
@@ -218,14 +228,20 @@ def evaluate(model, data_type, data_loader, config, logger=None, writer=None):
         for batch_id, batch in enumerate(data_loader):
             batch.x = batch.x.to(torch.float32)
             st = time.time()
-            importance = batch.degree_centrality
+            importance = batch.y_dc
             evaluate_results["mean"]["importance"].extend(importance.view(-1).tolist())
             if config['model'] == "Graphormer":
                 pred, importance_loss = model(batch)
                 bp_loss = importance_loss
             else:
                 importance_loss, attr_loss = model(batch)
-                bp_loss = importance_loss + attr_loss
+                if config['enhance']:
+                    bp_loss = importance_loss + attr_loss
+                elif config['attr_only']:
+                    bp_loss = attr_loss
+                else:
+                    bp_loss = importance_loss
+                # bp_loss = importance_loss + attr_loss if config['enhance'] else importance_loss
             et = time.time()
             evaluate_results["time"]["total"] += et - st
             avg_t = et - st
@@ -233,32 +249,37 @@ def evaluate(model, data_type, data_loader, config, logger=None, writer=None):
             evaluate_results["time"]["avg"].extend([avg_t])
             bp_loss_item = bp_loss.mean().item()
             total_bp_loss += bp_loss_item
-            evaluate_results["error"]["importance_loss"].extend(importance_loss.view(-1).tolist())
-            evaluate_results["error"]["attr_loss"].extend(attr_loss.view(-1).tolist())
+            if config['enhance']:
+                evaluate_results["error"]["attr_loss"].extend(attr_loss.view(-1).tolist())
+                evaluate_results["error"]["importance_loss"].extend(importance_loss.view(-1).tolist())
+            elif config['attr_only']:
+                evaluate_results["error"]["attr_loss"].extend(attr_loss.view(-1).tolist())
+            else:
+                evaluate_results["error"]["importance_loss"].extend(importance_loss.view(-1).tolist())
             et = time.time()
             total_time += et - st
             total_cnt += 1
-        mean_bp_loss = total_bp_loss / total_cnt
-        if logger and batch_id == epoch_step - 1 and config["test_only"] is False:
-            logger.info(
-                "epoch: {:0>3d}/{:0>3d}\tdata_type: {:<5s}\tbatch: {:d}/{:d}\tbp loss: {:.4f}\t".format(
-                    int(epoch),
-                    int(config["epochs"]),
-                    (data_type),
-                    int(batch_id),
-                    int(epoch_step),
-                    float(bp_loss_item),
-                )
+    mean_bp_loss = total_bp_loss / total_cnt
+    if logger and batch_id == epoch_step - 1 and config["test_only"] is False:
+        logger.info(
+            "epoch: {:0>3d}/{:0>3d}\tdata_type: {:<5s}\tbatch: {:d}/{:d}\tbp loss: {:.4f}\t".format(
+                int(epoch),
+                int(config["epochs"]),
+                (data_type),
+                int(batch_id),
+                int(epoch_step),
+                float(bp_loss_item),
             )
-            # float(var), float(pred_var[0].item())))
-            # "ground: {:.4f}\tpredict: {:.4f}"
+        )
+        # float(var), float(pred_var[0].item())))
+        # "ground: {:.4f}\tpredict: {:.4f}"
 
-        if logger and config["test_only"] is False:
-            logger.info(
-                "epoch: {:0>3d}/{:0>3d}\tdata_type: {:<5s}\t\tbp loss: {:.4f}".format(
-                    epoch, config["epochs"], data_type, mean_bp_loss
-                )
+    if logger and config["test_only"] is False:
+        logger.info(
+            "epoch: {:0>3d}/{:0>3d}\tdata_type: {:<5s}\t\tbp loss: {:.4f}".format(
+                epoch, config["epochs"], data_type, mean_bp_loss
             )
+        )
 
     gc.collect()
     return mean_bp_loss, evaluate_results, total_time
@@ -270,7 +291,7 @@ def model_test(save_model_dir, test_loaders, config, logger, writer):
         torch.load(
             os.path.join(
                 save_model_dir,
-                "best_epoch_{:s}.pt".format(train_config["model"]),
+                "best_epoch_{:s}_{:d}.pt".format(train_config["model"], train_config['graph_num_layers']),
             )
         )
     )
@@ -303,7 +324,10 @@ def model_test(save_model_dir, test_loaders, config, logger, writer):
             "w",
     ) as f:
         json.dump(evaluate_results, f)
-
+    logger.info("model is saved at" + os.path.join(
+        save_model_dir,
+        "best_epoch_{:s}_{:d}.pt".format(train_config["model"], train_config['graph_num_layers']),
+    ))
     return evaluate_results, total_test_time
 
 
@@ -363,10 +387,10 @@ if __name__ == "__main__":
         # load data
         # os.makedirs(train_config["save_data_dir"], exist_ok=True)
     # decompose the query
-    if train_config['dataset'] == "flixster" or train_config['dataset'] == "youtube":
+    if train_config['no_subgraph']:
         data = PretrainDataset(name=train_config['dataset'], filepath=train_config['dataset'])[0][0] if train_config[
                                                                                                             'dataset'] == "flixster" else \
-        PretrainDataset(name=train_config['dataset'], filepath=train_config['dataset'])[0]
+            PretrainDataset(name=train_config['dataset'], filepath=train_config['dataset'])[0]
         kwargs = dict(
             data=data,
             num_neighbors=[10, 10] * 2,
@@ -375,11 +399,14 @@ if __name__ == "__main__":
             pin_memory=True
         )
         train_idx = data.train_mask.nonzero(as_tuple=False).view(-1) if train_config[
-                                                                            'dataset'] == "youtube" else data.train_idx
+                                                                            'dataset'] == (
+                                                                                "web-spam" or "youtube") else data.train_idx
         val_idx = data.val_mask.nonzero(as_tuple=False).view(-1) if train_config[
-                                                                        'dataset'] == "youtube" else data.val_idx
+                                                                        'dataset'] == (
+                                                                            "web-spam" or "youtube") else data.val_idx
         test_idx = data.val_mask.nonzero(as_tuple=False).view(-1) if train_config[
-                                                                         'dataset'] == "youtube" else data.test_idx
+                                                                         'dataset'] == (
+                                                                             "web-spam" or "youtube") else data.test_idx
         train_loader = NeighborLoader(
             input_nodes=train_idx,
             shuffle=True,
@@ -396,20 +423,26 @@ if __name__ == "__main__":
             **kwargs,
         )
     else:
-        train_loader, val_loader, test_loader = dataset_load(
+        train_set, val_set, test_set = dataset_load(
             train_config['dataset'], batch_size=train_config["batch_size"]
         )
+        train_loader = DataLoader(train_set, batch_size=train_config["batch_size"], shuffle=True)
+        val_loader = DataLoader(val_set, batch_size=train_config["batch_size"], shuffle=False)
+        test_loader = DataLoader(test_set, batch_size=1, shuffle=False)
     # config['init_g_dim'] = graph.x.size(1)
     # train_config.update({'init_g_dim': graph.x.size(1)})
     # construct the model
     train_config["init_g_dim"] = next(iter(train_loader)).x.shape[1]
     if train_config["model"] == "GIN" or train_config["model"] == "SAGE":
         model = GraphTrainer(
-            train_config["graph_num_layers"],
-            train_config["init_g_dim"],
-            train_config["num_g_hid"],
-            train_config["out_g_ch"],
-            train_config["dropout"],
+            num_layer=train_config["graph_num_layers"],
+            input_dim=train_config["init_g_dim"],
+            hid_dim=train_config["num_g_hid"],
+            output_dim=train_config["out_g_ch"],
+            dropout=train_config["dropout"],
+            classification=False,
+            enhance=train_config['enhance'],
+            attr_only=train_config['attr_only']
         )
     elif train_config['model'] == "Graphormer":
         model = Gphormer(train_config['graph_num_layers'],
@@ -513,7 +546,7 @@ if __name__ == "__main__":
                 model.state_dict(),
                 os.path.join(
                     save_model_dir,
-                    "best_epoch_{:s}.pt".format(train_config["model"]),
+                    "best_epoch_{:s}_{:d}.pt".format(train_config["model"], train_config['graph_num_layers']),
                 ),
             )
             with open(

@@ -8,15 +8,23 @@ import time
 import warnings
 
 import numpy as np
+import psutil
 import torch
 import torch.nn.functional as F
 from torch import optim
 from torch.nn.functional import huber_loss
 from torch_geometric.loader import DataLoader, NeighborLoader
 from torch.utils.tensorboard import SummaryWriter
-from data.data_load import importance_graph_load, counting_graph_load
-from data.dataset import PretrainDataset
+from torch_geometric.utils import dropout_edge
+from data.data_load import pca
+from data.dataset import PretrainDataset, MyFlickr, wiki_load
+from torch_geometric.datasets import ZINC
 from model.baselinemodel import BaseGNN
+from torchmetrics.functional import spearman_corrcoef
+from torch_geometric.datasets import Flickr
+from thop import profile
+
+from utils.netutil import load_model
 
 warnings.filterwarnings("ignore")
 torch.autograd.set_detect_anomaly(True)
@@ -25,7 +33,7 @@ INF = float("inf")
 train_config = {
     "base": 2,
     "cuda": True,
-    "gpu_id": 5,
+    "gpu_id": 7,
     "num_workers": 16,
     "epochs": 100,
     "batch_size": 32,
@@ -42,7 +50,7 @@ train_config = {
     "bp_loss_slp": "anneal_cosine$1.0$0.01",  # 0, 0.01, logistic$1.0$0.01, linear$1.0$0.01, cosine$1.0$0.01,
     # cyclical_logistic$1.0$0.01, cyclical_linear$1.0$0.01, cyclical_cosine$1.0$0.01
     # anneal_logistic$1.0$0.01, anneal_linear$1.0$0.01, anneal_cosine$1.0$0.01
-    "lr": 0.0006,
+    "lr": 0.001,
     "weight_decay": 0.0005,
     "weight_decay_var": 0.1,
     "weight_decay_film": 0.0001,
@@ -69,7 +77,7 @@ train_config = {
     "num_g_hid": 32,
     "num_e_hid": 32,
     "out_g_ch": 32,
-    "graph_num_layers": 5,
+    "graph_num_layers": 3,
     "queryset_dir": "queryset",
     "true_card_dir": "label",
     "dataset": "web-spam",
@@ -78,7 +86,26 @@ train_config = {
     "save_res_dir": "result_baseline",
     "save_model_dir": "saved_model_baseline",
     "test_only": False,
+    "eval_term": "betweenness",
+    "task": "classification",
+    "num_class": 7,
+    "drop_edge":False
 }
+
+
+def _root_slice(batch):
+    # For NeighborLoader batches only the first batch.batch_size are seed (target) nodes
+    if hasattr(batch, "batch_size"):
+        return slice(0, batch.batch_size)
+    return slice(None)
+
+
+def classification_loss_and_metrics(logits, y):
+    loss = F.cross_entropy(logits, y.view(-1))
+    pred_label = logits.argmax(dim=-1)
+    correct = (pred_label == y.view(-1)).sum().item()
+    total = y.numel()
+    return loss, correct, total
 
 
 def train(
@@ -134,16 +161,35 @@ def train(
 
     model.train()
     total_time = 0
+    total_correct = 0
+    total_seen = 0
     for i, batch in enumerate(data_loader):
         batch = batch.to(device)
-        batch.x = batch.x.to(torch.float32)
+        batch.x = batch.x.squeeze(1).to(torch.float32) if config['dataset'] != "zinc" else batch.x.to(torch.float32)
+        if train_config['drop_edge']:
+            batch.edge_index,edge_mask = dropout_edge(
+                data.edge_index,
+                p=0.2,
+                training=True
+            )
+            batch.edge_attr = batch.edge_attr[edge_mask]
         s = time.time()
         if config['model'] == "Graphormer":
             pred, importance_loss = model(batch)
             total_loss_per_step = importance_loss
         else:
-            importance_loss = model(batch)
-            total_loss_per_step = importance_loss
+            if config['task'] == 'classification':
+                logits = model(batch)  # (N,C) or (N,1)
+                rs = _root_slice(batch)
+                cls_loss, correct, seen = classification_loss_and_metrics(
+                    logits[rs], batch.y[rs]
+                )
+                total_loss_per_step = cls_loss
+                total_correct += correct
+                total_seen += seen
+            else:
+                importance_loss, pred = model(batch)
+                total_loss_per_step = importance_loss
             total_loss_per_step.backward()
             if (i + 1) % config['update_every'] == 0:
                 optimizer.step()
@@ -152,26 +198,31 @@ def train(
         total_bp_loss += bp_loss_item
 
         if writer:
-            writer.add_scalar(
-                "%s/BP-%s" % (data_type, config["bp_loss"]),
-                bp_loss_item,
-                epoch * epoch_step + i,
-            )
+            writer.add_scalar(f"{data_type}/loss_step", bp_loss_item, epoch * epoch_step + i)
+            if config['task'] == 'classification':
+                writer.add_scalar(f"{data_type}/acc_step",
+                                  total_correct / max(1, total_seen),
+                                  epoch * epoch_step + i)
 
-        if logger and (
-                (i / config["batch_size"]) % config["print_every"] == 0
-                or i == epoch_step - 1
-        ):
-            logger.info(
-                "epoch: {:0>3d}/{:0>3d}\tdata_type: {:<5s}\tbatch: {:0>5d}/{:0>5d}\tbp loss: {:.5f}\t".format(
-                    int(epoch),
-                    int(config["epochs"]),
-                    data_type,
-                    int(i / config["batch_size"]),
-                    int(epoch_step / config["batch_size"]),
-                    float(bp_loss_item),
+        if logger and (((i / config["batch_size"]) % config["print_every"] == 0)
+                       or i == epoch_step - 1):
+            if config['task'] == 'classification':
+                logger.info(
+                    "epoch: {:03d}/{:03d}  data: {:<5s}  batch: {:05d}/{:05d}  loss: {:.5f}  acc: {:.4f}".format(
+                        epoch, config["epochs"], data_type,
+                        int(i / config["batch_size"]),
+                        int(epoch_step / config["batch_size"]),
+                        bp_loss_item,
+                        total_correct / max(1, total_seen))
                 )
-            )
+            else:
+                logger.info(
+                    "epoch: {:03d}/{:03d}  data: {:<5s}  batch: {:05d}/{:05d}  bp loss: {:.5f}".format(
+                        epoch, config["epochs"], data_type,
+                        int(i / config["batch_size"]),
+                        int(epoch_step / config["batch_size"]),
+                        bp_loss_item)
+                )
 
         if (i + 1) % config["batch_size"] == 0 or i == epoch_step - 1:
             if config["max_grad_norm"] > 0:
@@ -185,16 +236,25 @@ def train(
         total_cnt += 1
     mean_bp_loss = total_bp_loss / total_cnt
     if writer:
-        writer.add_scalar(
-            "%s/BP-%s-epoch" % (data_type, config["bp_loss"]), mean_bp_loss, epoch
-        )
-    if logger:
-        logger.info(
-            "epoch: {:0>3d}/{:0>3d}\tdata_type: {:<5s}\tbp loss: {:.4f}".format(
-                epoch, config["epochs"], data_type, mean_bp_loss
-            )
-        )
+        writer.add_scalar(f"{data_type}/loss_epoch", mean_bp_loss, epoch)
+        if config['task'] == 'classification':
+            writer.add_scalar(f"{data_type}/acc_epoch",
+                              total_correct / max(1, total_seen),
+                              epoch)
 
+    if logger:
+        if config['task'] == 'classification':
+            logger.info(
+                "epoch: {:03d}/{:03d}  data: {:<5s}  mean loss: {:.4f}  mean acc: {:.4f}".format(
+                    epoch, config["epochs"], data_type,
+                    mean_bp_loss, total_correct / max(1, total_seen))
+            )
+        else:
+            logger.info(
+                "epoch: {:03d}/{:03d}  data: {:<5s}  bp loss: {:.4f}".format(
+                    epoch, config["epochs"], data_type, mean_bp_loss
+                )
+            )
     gc.collect()
     return mean_bp_loss, total_time
 
@@ -208,23 +268,47 @@ def evaluate(model, data_type, data_loader, config, logger=None, writer=None):
     total_cnt = 1e-6
 
     evaluate_results = {"mean": {"importance": list()},
-                        "error": {"importance_loss": list()},
+                        "error": {"importance_loss": list(), "spearman corr": list(), "acc": list()},
                         "time": {"avg": list(), "total": 0.0}}
     model.eval()
     model = model.to("cpu")
     total_time = 0
+    total_correct = 0
+    total_seen = 0
     with torch.no_grad():
         for batch_id, batch in enumerate(data_loader):
-            batch.x = batch.x.to(torch.float32)
+            batch.x = batch.x.squeeze(1).to(torch.float32) if config['dataset'] != "zinc" else batch.x.to(torch.float32)
             st = time.time()
-            importance = batch.degree_centrality
-            evaluate_results["mean"]["importance"].extend(importance.view(-1).tolist())
-            if config['model'] == "Graphormer":
-                pred, importance_loss = model(batch)
-                bp_loss = importance_loss
+            if config['task'] == 'classification':
+                logits = model(batch)
+                rs = _root_slice(batch)
+                bp_loss, correct, seen = classification_loss_and_metrics(
+                    logits[rs], batch.y[rs]
+                )
+                loss_item = bp_loss.item()
+                total_correct += correct
+                total_seen += seen
+                evaluate_results["error"]["importance_loss"].append(loss_item)
+                evaluate_results["error"]["acc"].append(correct / max(1, seen))
             else:
-                importance_loss = model(batch)
-                bp_loss = importance_loss
+                if config['dataset'] == "zinc":
+                    importance = batch.y
+                elif config['eval_term'] == "betweenness":
+                    importance = batch.betweenness_centrality
+                elif config['eval_term'] == "eigenvector":
+                    importance = batch.eigenvector_centrality
+                else:
+                    importance = batch.pagerank
+                evaluate_results["mean"]["importance"].extend(importance.view(-1).tolist()) if config['task'] != 'classification' else None
+                if config['model'] == "Graphormer":
+                    pred, importance_loss = model(batch)
+                    bp_loss = importance_loss
+                else:
+                    importance_loss, pred = model(batch)
+                    spear = spearman_corrcoef(pred, importance)
+                    bp_loss = importance_loss
+                    evaluate_results["error"]["importance_loss"].extend(importance_loss.view(-1).tolist())
+                    evaluate_results["error"]["spearman corr"].extend(spear.view(-1).tolist())
             et = time.time()
             evaluate_results["time"]["total"] += et - st
             avg_t = et - st
@@ -232,46 +316,51 @@ def evaluate(model, data_type, data_loader, config, logger=None, writer=None):
             evaluate_results["time"]["avg"].extend([avg_t])
             bp_loss_item = bp_loss.mean().item()
             total_bp_loss += bp_loss_item
-            evaluate_results["error"]["importance_loss"].extend(importance_loss.view(-1).tolist())
+
             et = time.time()
             total_time += et - st
             total_cnt += 1
         mean_bp_loss = total_bp_loss / total_cnt
-        if logger and batch_id == epoch_step - 1 and config["test_only"] is False:
-            logger.info(
-                "epoch: {:0>3d}/{:0>3d}\tdata_type: {:<5s}\tbatch: {:d}/{:d}\tbp loss: {:.4f}\t".format(
-                    int(epoch),
-                    int(config["epochs"]),
-                    (data_type),
-                    int(batch_id),
-                    int(epoch_step),
-                    float(bp_loss_item),
+        if config['task'] == 'classification':
+            mean_acc = total_correct / max(1, total_seen)
+            evaluate_results["summary_acc"] = mean_acc
+            if logger and config["test_only"] is False:
+                logger.info(
+                    "eval data: {:<5s}  loss: {:.4f}  acc: {:.4f}".format(
+                        data_type, mean_bp_loss, mean_acc
+                    )
                 )
-            )
-            # float(var), float(pred_var[0].item())))
-            # "ground: {:.4f}\tpredict: {:.4f}"
-
-        if logger and config["test_only"] is False:
-            logger.info(
-                "epoch: {:0>3d}/{:0>3d}\tdata_type: {:<5s}\t\tbp loss: {:.4f}".format(
-                    epoch, config["epochs"], data_type, mean_bp_loss
+            if writer:
+                writer.add_scalar(f"{data_type}/loss_epoch", mean_bp_loss, globals().get("epoch", 0))
+                writer.add_scalar(f"{data_type}/acc_epoch", mean_acc, globals().get("epoch", 0))
+        else:
+            if logger and config["test_only"] is False:
+                logger.info(
+                    "eval data: {:<5s}  bp loss: {:.4f}".format(
+                        data_type, mean_bp_loss
+                    )
                 )
-            )
-
+            if writer:
+                writer.add_scalar(f"{data_type}/bp_loss_epoch", mean_bp_loss, globals().get("epoch", 0))
     gc.collect()
     return mean_bp_loss, evaluate_results, total_time
 
 
-def model_test(save_model_dir, test_loaders, config, logger, writer):
+def model_test(save_model_dir, test_loaders, config, logger, writer, model=None):
     total_test_time = 0
-    model.load_state_dict(
-        torch.load(
-            os.path.join(
-                save_model_dir,
-                "best_epoch_{:s}.pt".format(train_config["model"]),
-            )
-        )
-    )
+    logger.info(f"Load model from {os.path.join(save_model_dir, "best_epoch_{:s}.pt".format(train_config["model"]), )}")
+    model = load_model(model, os.path.join(
+        save_model_dir,
+        "best_epoch_{:s}.pt".format(train_config["model"]),
+    ))
+    # model.load_state_dict(
+    #     torch.load(
+    #         os.path.join(
+    #             save_model_dir,
+    #             "best_epoch_{:s}.pt".format(train_config["model"]),
+    #         )
+    #     )
+    # )
     # print(model)
     mean_bp_loss, evaluate_results, _time = evaluate(
         model=model,
@@ -288,20 +377,21 @@ def model_test(save_model_dir, test_loaders, config, logger, writer):
     logger.info(
         "data_type: {:<5s}\tbest mean loss: {:.3f}".format("test", mean_bp_loss)
     )
-    with open(
-            os.path.join(
-                save_model_dir,
-                "%s_%s_%s_pre_trained.json"
-                % (
-                        train_config["model"],
-                        "best_test",
-                        train_config["dataset"],
-                ),
-            ),
-            "w",
-    ) as f:
+    save_path = os.path.join(
+        save_model_dir,
+        "%s_%s_%s_%s_%d_%s.json"
+        % (
+            train_config["model"],
+            "best_test",
+            train_config["dataset_name"],
+            train_config["eval_term"],
+            train_config['graph_num_layers'],
+            train_config['task']
+        ),
+    )
+    with open(save_path, "w") as f:
         json.dump(evaluate_results, f)
-
+    logger.info("results saved in %s" % save_path)
     return evaluate_results, total_test_time
 
 
@@ -361,13 +451,45 @@ if __name__ == "__main__":
         # load data
         # os.makedirs(train_config["save_data_dir"], exist_ok=True)
     # decompose the query
-    if train_config['dataset'] == "flixster":
-        data = PretrainDataset(name=train_config['dataset'], filepath=train_config['dataset'])[0][0]
-    else:
-        data = PretrainDataset(name=train_config['dataset'], filepath=train_config['dataset'])[0]
+    if train_config['dataset'] == "flickr":
+        if train_config['task'] == 'classification':
+            dataset = Flickr(root="/mnt/data/banlujie/dataset/flickr_org")
+            data = dataset[0]
+            data.x = pca(data.x, 32)
+            train_config['num_class'] = dataset.num_classes
+        else:
+            data = MyFlickr(root="/mnt/data/banlujie/dataset/flickr")[0]
+        train_idx = data.train_mask.nonzero(as_tuple=False).view(-1)
+        val_idx = data.val_mask.nonzero(as_tuple=False).view(-1)
+        test_idx = data.val_mask.nonzero(as_tuple=False).view(-1)
         kwargs = dict(
             data=data,
-            num_neighbors=[10, 10] * 2,
+            num_neighbors=[5] * 2,
+            batch_size=train_config["batch_size"],
+            num_workers=8,
+            pin_memory=True
+        )
+        train_loader = NeighborLoader(
+            input_nodes=train_idx,
+            shuffle=True,
+            **kwargs,
+        )
+        val_loader = NeighborLoader(
+            input_nodes=val_idx,
+            shuffle=False,
+            **kwargs,
+        )
+        test_loader = NeighborLoader(
+            input_nodes=test_idx,
+            shuffle=False,
+            **kwargs,
+        )
+
+    elif train_config['dataset'] in ["web-spam", 'youtube', 'brightkite', 'facebook', "indochina"]:
+        data = PretrainDataset(name=train_config['dataset'], filepath=train_config['dataset'])[0][0] if train_config['dataset'] in ['facebook','youtube']  else PretrainDataset(name=train_config['dataset'], filepath=train_config['dataset'])[0]
+        kwargs = dict(
+            data=data,
+            num_neighbors=[5] * 2,
             batch_size=train_config["batch_size"],
             num_workers=8,
             pin_memory=True
@@ -390,12 +512,47 @@ if __name__ == "__main__":
             shuffle=False,
             **kwargs,
         )
+    elif train_config['dataset'] == "zinc":
+        train_set = ZINC(root="/mnt/data/banlujie/dataset/zinc", split="train")
+        val_set = ZINC(root="/mnt/data/banlujie/dataset/zinc", split="val")
+        test_set = ZINC(root="/mnt/data/banlujie/dataset/zinc", split="test")
+        train_loader = DataLoader(train_set, batch_size=train_config["batch_size"], shuffle=True)
+        val_loader = DataLoader(val_set, batch_size=train_config["batch_size"], shuffle=False)
+        test_loader = DataLoader(test_set, batch_size=train_config["batch_size"], shuffle=False)
+    elif train_config['dataset'] == "wiki":
+        data = wiki_load(root="/mnt/data/banlujie/dataset/wiki", name=train_config['dataset_name'],
+                         geom_gcn_preprocess=True)
+        train_idx = data.train_mask.nonzero(as_tuple=False)
+        val_idx = data.val_mask.nonzero(as_tuple=False)
+        test_idx = data.val_mask.nonzero(as_tuple=False)
+        kwargs = dict(
+            data=data,
+            num_neighbors=[-1] * 2,
+            batch_size=train_config["batch_size"],
+            num_workers=28,
+            pin_memory=True
+        )
+        train_loader = NeighborLoader(
+            input_nodes=train_idx,
+            shuffle=True,
+            **kwargs,
+        )
+        val_loader = NeighborLoader(
+            input_nodes=val_idx,
+            shuffle=False,
+            **kwargs,
+        )
+        test_loader = NeighborLoader(
+            input_nodes=test_idx,
+            shuffle=False,
+            **kwargs,
+        )
     # config['init_g_dim'] = graph.x.size(1)
     # train_config.update({'init_g_dim': graph.x.size(1)})
     # construct the model
-    # train_config["init_g_dim"] = next(iter(train_loader)).x.shape[1]
-    if train_config["model"] == "GIN" or train_config["model"] == "GAT" or train_config['model'] == "GCN" or \
-            train_config["model"] == "GraphSage":
+    train_config["init_g_dim"] = next(iter(train_loader)).x.shape[1]  # if train_config['dataset'] != "web-spam" else \
+    # next(iter(train_loader)).x.shape[2]
+    if train_config["model"] in ["GAT", "GCN", "Transformer", "GIN", "SAGE", "DirGNN","APPNP","SG","DeepGCN","JKNet"]:
         model = BaseGNN(
             train_config['model'],
             train_config["graph_num_layers"],
@@ -403,6 +560,9 @@ if __name__ == "__main__":
             train_config["num_g_hid"],
             train_config["out_g_ch"],
             train_config["dropout"],
+            train_config['eval_term'],
+            task=train_config['task'],
+            num_classes=train_config['num_class']
         )
     else:
         raise NotImplementedError(
@@ -414,6 +574,7 @@ if __name__ == "__main__":
         "num of parameters: %d"
         % (sum(p.numel() for p in model.parameters() if p.requires_grad))
     )
+    # logger.info(f"FLOPs:{10 * data.edge_index.size(1) * data.x.size(1)}")
 
     # optimizer and losses
     writer = SummaryWriter()
@@ -436,11 +597,12 @@ if __name__ == "__main__":
     cur_reg_loss = {}
     if train_config["test_only"]:
         evaluate_results, total_test_time = model_test(
-            save_model_dir, test_loader, train_config, logger, writer
+            save_model_dir, test_loader, train_config, logger, writer, model
         )
         exit(0)
     tolerance_cnt = 0
     for epoch in range(train_config["epochs"]):
+
         # if train_config['cv'] == True:
         #     cross_validate(model=model, query_set=QS, device=device, config=train_config, graph=graph, logger=logger,
         #                    writer=writer)
@@ -459,6 +621,10 @@ if __name__ == "__main__":
             bottleneck=False,
         )
         total_train_time += _time
+        logger.info("data_type: {:<5s}\t\tCUDA cost: {:.3f} MB\t Memory cost: {:.3f} MB\t (epoch: {:0>3d})".format(
+            "train", torch.cuda.memory.memory_allocated(device) / (1024 * 1024),
+            float(psutil.Process(os.getpid()).memory_info().rss / (1024 ** 2)), epoch))
+        logger.info(f"GPU time: {_time}s")
         if scheduler and (epoch + 1) % train_config["decay_patience"] == 0:
             scheduler.step()
             # torch.save(model.state_dict(), os.path.join(save_model_dir, 'epoch%d.pt' % (epoch)))
@@ -515,7 +681,7 @@ if __name__ == "__main__":
             break
     print("data finish")
     evaluate_results, total_test_time = model_test(
-        save_model_dir, test_loader, train_config, logger, writer
+        save_model_dir, test_loader, train_config, logger, writer, model=model
     )
     logger.info(
         "train time: {:.3f}, train time per epoch :{:.3f}, test time: {:.3f}, all time: {:.3f}".format(

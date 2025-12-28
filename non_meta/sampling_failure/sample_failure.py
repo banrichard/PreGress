@@ -1,16 +1,16 @@
 import os
 import sys
+sys.path.append("/home/banlujie/metaCounting")
+from  torch_geometric.utils import to_networkx
 
-sys.path.append(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
 import networkx as nx
 import argparse
 import random
 from tqdm import tqdm
-import nx_cugraph as nxcg
 from networkx.algorithms import isomorphism
 import numpy as np
 from data.data_load import load_local_query, extract_size_from_directory_name, graph_file_reader
-
+from data.dataset import MyFlickr
 
 def subgraph_match(graph1, graph2):
     matcher = isomorphism.GraphMatcher(graph1,graph2) or isomorphism.GraphMatcher(graph2,graph1)
@@ -73,7 +73,11 @@ if __name__ == '__main__':
     num_six_query = len(node_six_query)
     node_seven_query = queries.get(7)
     num_seven_query = len(node_seven_query)
-    graph = graph_file_reader(edge_list, graph_path)
+    if graph_path == "/mnt/data/banlujie/dataset/flickr/flickr.txt":
+        data = MyFlickr(root="/mnt/data/banlujie/dataset/flickr")[0]
+        graph = to_networkx(data, to_undirected=True)
+    else:
+        graph = graph_file_reader(edge_list, graph_path)
     subgraphs = []
     fail_rate = {5: [], 6: [], 7: []}
     for i in range(2):
@@ -99,7 +103,7 @@ if __name__ == '__main__':
     fail_rate_mean_6 = np.mean(fail_rate.get(6))
     fail_rate_mean_7 = np.mean(fail_rate.get(7))
 
-    with open("/home/banlujie/metaCounting/non_meta/" + dataset_name + "_fail_{:d}.txt".format(radius), "w") as f:
+    with open("/home/banlujie/metaCounting/non_meta/sampling_failure/" + dataset_name + "_fail_{:d}.txt".format(radius), "w") as f:
         f.write(
             "fail rate 5:{:.4f}\n fail rate 6:{:.4f}\n fail rate 7:{:.4f}".format(fail_rate_mean_5, fail_rate_mean_6,
                                                                                   fail_rate_mean_7))

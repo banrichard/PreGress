@@ -1,13 +1,17 @@
 from typing import Union
 
 import torch
+from thop import profile
 from torch import nn as nn
 from torch_geometric.data import Data
-from torch_geometric.nn import GCNConv, GATConv, SAGEConv, GINConv, global_mean_pool
+from torch_geometric.nn import GCNConv, GATConv, SAGEConv, GINConv, global_mean_pool, TransformerConv, \
+    AntiSymmetricConv, DirGNNConv,APPNP,SGConv,DeepGCNLayer, GENConv,JumpingKnowledge
 import torch.nn.functional as F
-
+from torch_geometric.utils import dropout_edge
+from torch.nn import LayerNorm, Linear, ReLU
 from model.layers import CentralityEncoding, SpatialEncoding, GraphormerEncoderLayer, shortest_path_distance, \
     batched_shortest_path_distance
+from utils.netutil import map_activation_str_to_layer, init_weight, init_module
 from .normalization import PairNorm
 
 
@@ -26,29 +30,37 @@ class Backbone(nn.Module):
         for l in range(self.num_layers):
             hidden_input_dim = self.input_dim if l == 0 else self.hid_dim
             hidden_output_dim = self.hid_dim
-            self.convs.append(self.conv(hidden_input_dim, hidden_output_dim))
+            if self.model_type not in ["APPNP", "DirGNN"]:
+                self.convs.append(self.conv(hidden_input_dim, hidden_output_dim))
+            else:
+                self.convs.append(GCNConv(hidden_input_dim, hidden_output_dim))
+                self.convs.append(self.conv)
 
     def build_conv_layers(self):
         if self.model_type == "GCN":
             return GCNConv
         elif self.model_type == "GAT":
             return GATConv
-        elif self.model_type == "GraphSage":
+        elif self.model_type == "SAGE":
             return SAGEConv
+        elif self.model_type == "APPNP":
+            return APPNP(K=2, alpha=0.1)
+        elif self.model_type =="SG":
+            return SGConv
         elif self.model_type == "GIN":
             return lambda in_ch, hid_ch: GINConv(nn=nn.Sequential(
                 nn.Linear(in_ch, hid_ch), nn.ReLU(), nn.Linear(hid_ch, hid_ch)), train_eps=True)
-        elif self.model_type == "Graphormer":
-            return
+        elif self.model_type == "Transformer":
+            return TransformerConv
+        elif self.model_type == "DirGNN":
+            return lambda in_ch, hid_ch: DirGNNConv(conv=GCNConv(in_channels=in_ch, out_channels=hid_ch))
         else:
             raise NotImplementedError("Current do not support!")
 
+
     def forward(self, x, edge_index, edge_attr=None):
         for i in range(self.num_layers):
-            if self.model_type == "GIN" or self.model_type == "GINE" or self.model_type == "GAT" \
-                    or self.model_type == "GraphSage":
-                x = self.convs[i](x, edge_index)  # for GIN and GINE
-            elif self.model_type == "Graph" or self.model_type == "GCN":
+            if self.model_type in ["GCN", "GIN", "GINE", "GAT", "SAGE", "Transformer","DirGNN","APPNP","SG"]:
                 x = self.convs[i](x, edge_index)
             elif self.model_type == "NN" or self.model_type == "NNGIN" or self.model_type == "NNGINConcat":
                 x = self.convs[i](x=x, edge_index=edge_index, edge_attr=edge_attr)
@@ -62,7 +74,70 @@ class Backbone(nn.Module):
         return x
 
 
+class DeeperGCN(torch.nn.Module):
+    def __init__(self, num_layers, input_dim, hidden_dim, output_dim, dropout=0.5, edge_input_dim=1):
+        super().__init__()
+
+        self.node_encoder = Linear(input_dim, hidden_dim)
+        self.edge_encoder = Linear(edge_input_dim, hidden_dim)
+
+        self.layers = torch.nn.ModuleList()
+        for i in range(1, num_layers + 1):
+            conv = GENConv(hidden_dim, hidden_dim, aggr='softmax',
+                           t=1.0, learn_t=True, num_layers=2, norm='layer')
+            norm = LayerNorm(hidden_dim, elementwise_affine=True)
+            act = ReLU(inplace=True)
+
+            layer = DeepGCNLayer(conv, norm, act, block='res+', dropout=0.1,
+                                 ckpt_grad=i % 3)
+            self.layers.append(layer)
+
+        self.lin = Linear(hidden_dim, output_dim)
+
+    def forward(self, x, edge_index, edge_attr):
+        x = self.node_encoder(x)
+        edge_attr = self.edge_encoder(edge_attr)
+
+        x = self.layers[0].conv(x, edge_index, edge_attr)
+
+        for layer in self.layers[1:]:
+            x = layer(x, edge_index, edge_attr)
+
+        x = self.layers[0].act(self.layers[0].norm(x))
+        x = F.dropout(x, p=0.1, training=self.training)
+
+        return self.lin(x)
+
+
+class JKNet(nn.Module):
+    def __init__(self, num_layers, input_dim, hidden_dim, output_dim, jk_mode="cat", dropout=0.5):
+        super().__init__()
+        assert num_layers >= 2, "JKNet requires at least two layers."
+        self.num_layers = num_layers
+        self.dropout = dropout
+        self.convs = nn.ModuleList()
+        for i in range(num_layers):
+            in_dim = input_dim if i == 0 else hidden_dim
+            self.convs.append(GCNConv(in_dim, hidden_dim))
+        self.jk = JumpingKnowledge(mode=jk_mode, channels=hidden_dim, num_layers=num_layers)
+        out_in_dim = hidden_dim * num_layers if jk_mode == "cat" else hidden_dim
+        self.lin = nn.Linear(out_in_dim, output_dim)
+
+    def forward(self, x, edge_index):
+        xs = []
+        for i, conv in enumerate(self.convs):
+            x = conv(x, edge_index)
+            if i < self.num_layers - 1:
+                x = F.relu(x)
+                x = F.dropout(x, p=self.dropout, training=self.training)
+            xs.append(x)
+        x = self.jk(xs)
+        return self.lin(x)
+
+
+
 class Graphormer(nn.Module):
+
     def __init__(self,
                  num_layers: int,
                  input_node_dim=1,

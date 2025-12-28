@@ -1,15 +1,20 @@
+import time
+
 import networkx as nx
 import torch
+from pylibcugraph import betweenness_centrality
 from torch_geometric.data import InMemoryDataset
 from torch_geometric.utils import from_networkx
 import os.path as osp
 
+from data_load import subgraph_construction
+
 
 class SynDataset(InMemoryDataset):
-    def __init__(self, root="/mnt/data/dataset", name="synthetic1", pre_transform=None, transform=None,
+    def __init__(self, root="/mnt/data/banlujie/dataset", name="synthetic1", pre_transform=None, transform=None,
                  pre_filter=None,
                  use_edge_attr=False, filepath="synthetic1", train_ratio=0.8, val_ratio=0.1, test_ratio=0.1,
-                 num_nodes=1000, density=5):
+                 num_nodes=1000, density=5,force_reload=False):
         self.root = root
         self.use_edge_attr = use_edge_attr
         self.filepath = filepath
@@ -22,7 +27,7 @@ class SynDataset(InMemoryDataset):
         self.test_ratio = test_ratio
         self.num_nodes = num_nodes
         self.density = density
-        super().__init__(root, pre_transform, transform, pre_filter)
+        super().__init__(root, pre_transform, transform, pre_filter,force_reload=force_reload)
         self.data = torch.load(self.processed_paths[0])
 
     @property
@@ -67,15 +72,29 @@ class SynDataset(InMemoryDataset):
         # Read data into huge `Data` list.
         num_edges = self.num_nodes * self.density
         graph = nx.gnm_random_graph(self.num_nodes, num_edges)
+
         eigenvector_centrality = nx.eigenvector_centrality(graph, backend="cugraph")
+        print("Begin to compute betweenness centrality...")
+        st = time.time()
+        betweenness_centrality = nx.betweenness_centrality(graph)
+        et = time.time()
+        print(f"Betweenness centrality computation time: {(et - st) * 1000}  ms")
         for i in range(len(graph.nodes)):
+            graph.nodes[i]['x'] = 0.0
             graph.nodes[i]['eigenvector_centrality'] = eigenvector_centrality[i]
+            graph.nodes[i]['betweenness_centrality'] = betweenness_centrality[i]
         data = from_networkx(graph)
         data.x = torch.zeros(self.num_nodes, 1).to(torch.float32)
         data.eigenvector_centrality = data.eigenvector_centrality.unsqueeze(1)
+        data.betweenness_centrality = data.betweenness_centrality.unsqueeze(1)
         data.train_mask, data.val_mask, data.test_mask = self.dataset_split(data)
+        st1 = time.time()
+        subgraph_construction(graph, data_file=self.name, k=2)
+        et1 = time.time()
+        print(f"Subgraph construction time: {(et1 - st1) * 1000}  ms")
         torch.save(data, self.processed_paths[0])
 
+
 if __name__ == "__main__":
-    synthetic1 = SynDataset(name="synthetic50", filepath="synthetic50", num_nodes=10000, density=50)
-    print(synthetic1[0].x.size())
+    synthetic1 = SynDataset(name="synthetic10", filepath="synthetic10", num_nodes=100000, density=5,force_reload=True)
+    # synthetic1.process()
