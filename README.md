@@ -1,4 +1,4 @@
-# PreGress:Pre-trained Subgraph Neural Network for Node-centric Graph Property Regression
+# PreGress:Ranking-Native Pre-training and Prompting for Graph Node Ranking
 
 -----------------
 A PyTorch + torch-geometric implementation of PreGress.
